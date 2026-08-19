@@ -123,7 +123,7 @@ connection shape only — no real values, ever (principles §3).
 **Done when:** from a clean machine, `docker compose up -d` followed by a `pg_isready` check
 succeeds, and the whole step is one command in the README draft.
 
-### [ ] T-04 · P1 · Migration 0001 — schema + index
+### [x] T-04 · P1 · Migration 0001 — schema + index
 
 deps: [T-01, T-02, T-03]
 

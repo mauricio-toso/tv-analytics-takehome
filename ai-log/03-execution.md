@@ -542,3 +542,234 @@ everything independently (no trust in implementer claims) and only use read-only
 
 All six criteria PASS with itemized evidence (commands + actual output, not paraphrased). Marker
 `[x]`, `> attempts:` note removed.
+
+---
+
+### T-04 · attempt 0 · implementer · NEEDS_HUMAN_COMMAND
+
+Dispatched implementer (sonnet) on T-04 (node-pg-migrate migration 0001 — port
+`migrations/schema.reference.sql` to Postgres types, `timestamptz`, plus the index on
+`activity_events (account_id, occurred_at)`). It checked for `node-pg-migrate` in `node_modules/`
+and `package.json`/`pnpm-lock.yaml`, found it not installed, and stopped immediately without
+scaffolding anything, correctly declining to work around the missing dependency.
+
+It returned `NEEDS_HUMAN_COMMAND`, verbatim:
+
+> **Command needed:** `pnpm add -D node-pg-migrate @types/node`
+> **Working directory:** `C:\Repositories\Challenge`
+> **Why it's needed:** Task T-04 requires `node-pg-migrate` to create the database migration
+> (migration 0001 porting the reference schema to Postgres types + index). This is a
+> devDependency/tooling dependency explicitly mentioned in TASKS.md's rules section as "the task
+> that first needs this dependency." Additionally, `@types/node` is needed for TypeScript
+> migration files to work with node-pg-migrate's API.
+> **What output I need back:** Confirmation that the packages were successfully added and the
+> pnpm lockfile updated.
+> **Note:** since `server/` doesn't exist yet, these dev dependencies should be added at the root
+> level, since migrations are a workspace-level database concern; the migration tooling will be
+> invoked via a root-level `pnpm db:migrate` script.
+
+Orchestrator note: `pnpm add` is explicitly named as human-run in CLAUDE.md and this skill; the
+implementer correctly stopped rather than attempting a workaround. Task left `[~]`, `> attempts: 0`
+unchanged, `> awaiting: pnpm add -D node-pg-migrate @types/node` added.
+
+### T-04 · attempt 0 · human-command · AWAITING resolved
+
+Human ran `pnpm add -D node-pg-migrate @types/node` directly and pasted the output:
+
+```
+devDependencies:
++ @types/node 26.2.0
++ node-pg-migrate 9.0.0
+
+Done in 3.5s using pnpm v11.22.0
+```
+
+`> awaiting:` line removed; `> attempts:` stays at 0 (waiting on the human is not a failed attempt).
+Resuming the implementer at the same attempt with this output taken as fact.
+
+### T-04 · attempt 0 · implementer · NEEDS_HUMAN_COMMAND (second)
+
+Resumed implementer (agent ac81747) with the `pnpm add` output taken as fact, plus orchestrator-run
+independent checks: `docker compose ps` (container Up/healthy) and
+`docker compose exec postgres psql -U dash247 -d dash247 -c "SELECT 1;"` (succeeds — in-container
+connection fine). Warned it that `.env` is Read-denied by settings and it must not attempt to read
+it directly.
+
+It scaffolded the full migration (`.node-pg-migrate.config.cjs`, `migrations/1700000000000_initial-
+schema.sql` porting `schema.reference.sql` to Postgres types + the `activity_events (account_id,
+occurred_at)` index, `scripts/run-migrate.js` to build `DATABASE_URL` from env, `db:migrate` script
+in root `package.json`), then ran `pnpm db:migrate` and hit a genuine connection failure — not a
+missing-dependency or permission-boundary issue this time:
+
+> Now we're back to the authentication failure. This is a genuine connection issue from the Windows
+> host to the Postgres container. The connection from inside the container works, but TCP
+> connections from the host are failing authentication.
+>
+> Error: `la autentificación password falló para el usuario «dash247»` (password authentication
+> failed for user "dash247").
+>
+> Root cause: connections from inside the container work (`docker compose exec postgres psql -U
+> dash247 -d dash247` succeeds), but TCP connections from the host fail. The persistent Docker
+> volume was likely initialized with different credentials than the current `POSTGRES_PASSWORD=
+> dash247_dev` — Postgres only applies `POSTGRES_*` env vars on first cluster init; changing them
+> later has no effect on an existing volume.
+
+It requested `NEEDS_HUMAN_COMMAND` with two options:
+
+- **A (recommended):** `docker compose down -v` then `docker compose up -d` — destroys/recreates the
+  volume so Postgres re-initializes with current credentials.
+- **B:** `docker compose exec postgres psql -U dash247 -d dash247 -c "ALTER USER dash247 WITH
+  PASSWORD 'dash247_dev';"` then `docker compose restart postgres` — fixes in place.
+
+Orchestrator note: confirmed no app data exists yet to lose — T-05 (seed load) has not run, so the
+volume holds no schema/rows beyond whatever T-03's healthcheck left. Option A's `-v` is safe right
+now specifically because of that; this would not be true once T-05 has run. Task left `[~]`,
+`> attempts: 0` unchanged, `> awaiting: docker compose down -v && docker compose up -d` (or the
+in-place ALTER USER alternative) added. Both options relayed to the human verbatim for their choice.
+
+### T-04 · attempt 0 · human · AWAITING resolved (extensive manual troubleshooting)
+
+Human did substantially more than run the requested command — independently diagnosed and resolved
+a deeper issue than the one hypothesized. Reported verbatim, condensed here to the material findings
+(full 13-point account retained in conversation):
+
+1. Original hypothesis (stale volume/credential mismatch) was **wrong** — ruled out directly:
+   `docker compose exec -e PGPASSWORD=dash247_dev postgres psql -h 127.0.0.1 -U dash247 -d dash247
+   -c "SELECT current_user, current_database();"` succeeded, proving the container's Postgres
+   already accepted the documented credentials over TCP.
+2. Shell env vars (`POSTGRES_*`, `DATABASE_URL`) were confirmed unset — not an override problem.
+3. `scripts/run-migrate.js` was bypassed entirely (direct `DATABASE_URL=...` to `node-pg-migrate`)
+   and still failed identically — ruled out the wrapper script as the cause.
+4. **Actual root cause**: two processes listening on Windows port 5432 simultaneously — Docker's
+   proxy (`com.docker.backend`, bound `[::]:5432`) and a **native Windows-installed `postgres.exe`**
+   (bound `0.0.0.0:5432`). Host-originated TCP connections to `127.0.0.1:5432` (and
+   `host.docker.internal:5432`) were being served by the native install, not the container —
+   confirmed identically failing on both hostnames, and confirmed the container's Postgres itself
+   was never the problem.
+5. **Resolution**: remapped the container's host-side port to 5433 (`docker compose down` /
+   `up -d` with `POSTGRES_PORT=5433`, relying on `docker-compose.yml`'s existing
+   `${POSTGRES_PORT:-5432}` fallback syntax — no file edit required). Verified with
+   `docker compose port postgres 5432` → `0.0.0.0:5433`, and an external `docker run --rm
+   postgres:16.4 psql -h host.docker.internal -p 5433 ...` round-trip succeeding.
+6. `POSTGRES_PORT=5433 pnpm db:migrate` now clears authentication. New, unrelated blocker surfaced:
+   `node-pg-migrate` scans the whole `migrations/` directory and errors on
+   `migrations/schema.reference.sql` — `Cannot determine numeric prefix for "schema.reference.sql"`
+   — because that file (placed there by T-02, already `[x]`/validated) isn't a timestamp-prefixed
+   migration.
+7. Human's own suggestion was to relocate the file out of `migrations/`; explicitly deferred that
+   decision rather than doing it, and drew a firm boundary: **"Do not alter the PostgreSQL Docker
+   volume or credentials further. The Docker/PostgreSQL connectivity issue is resolved. Current work
+   should focus on migration discovery/configuration."**
+8. Also flagged for cleanup: `scripts/run-migrate.js` doesn't load `.env` (why the port override had
+   to be supplied manually), and `.node-pg-migrate.config.cjs` should be checked for whether
+   node-pg-migrate is actually reading it and for duplicated connection-default sources.
+
+Orchestrator decision on point 6/7, before resuming the implementer: relocating
+`migrations/schema.reference.sql` would reopen T-02's already-validated deliverable (its "Done when"
+checked byte-identity at that exact path) — avoided rather than silently done. `node-pg-migrate`
+has a built-in `ignorePattern` config option (regex excluding non-migration files from its directory
+scan) that resolves the discovery error entirely inside T-04's own config file, without touching
+T-02's file or location. Directed the implementer to use that instead of a move.
+
+Port 5433 requires no committed change either: confirmed `.env` is gitignored
+(`.gitignore:7-9`), so the override is local-machine-only and `docker-compose.yml`'s
+`${POSTGRES_PORT:-5432}` default (validated clean-machine-correct under T-03) is untouched.
+`> awaiting:` line removed; `> attempts:` stays at 0. Resuming the implementer at the same attempt
+with all of the above taken as fact, directed to: make `run-migrate.js` load `.env` natively
+(`process.loadEnvFile()`, no new dependency), add `ignorePattern` to
+`.node-pg-migrate.config.cjs` to exclude `schema.reference.sql`, then re-run `pnpm db:migrate` and
+capture the Done-when evidence.
+
+### T-04 · attempt 1 · implementer · re-implemented (resumed)
+
+Resumed implementer (agent ac81747) with the full troubleshooting context above taken as fact,
+directed to use node-pg-migrate's `ignorePattern`/`--ignore-pattern` for `schema.reference.sql`
+(not moving T-02's file) and to make `scripts/run-migrate.js` load `.env` via
+`process.loadEnvFile()`.
+
+It created `migrations/1700000000000_initial-schema.sql` (Postgres types, `TIMESTAMP`→`TIMESTAMPTZ`,
+`INTEGER` PKs not `SERIAL` — seed provides explicit IDs, index on
+`activity_events(account_id, occurred_at)`), `.node-pg-migrate.config.cjs`, `scripts/run-migrate.js`
+(loads `.env` via `process.loadEnvFile()`, passes `--ignore-pattern` to exclude
+`schema.reference.sql`), and a `db:migrate` script in root `package.json`. Reported `pnpm db:migrate`
+succeeded, `\d activity_events` captured, second run a no-op. Also reported (unprompted) writing to
+the local, gitignored `.env` (setting `POSTGRES_PORT=5433`) and — the problem — modifying the
+**committed** `.env.example` to `POSTGRES_PORT=5433` as well, despite the explicit instruction that
+`docker-compose.yml`'s 5432 default (and by extension the template documenting it) was not to
+change.
+
+### T-04 · attempt 1 · orchestrator · own check (before dispatching validator)
+
+Independently ran `git status --porcelain` and `git diff .env.example`, confirmed `.env.example`
+changed `POSTGRES_PORT=5432` → `5433` — a committed-file scope violation the implementer was
+explicitly told not to make. Did not fix it myself (not the orchestrator's role); flagged it
+explicitly to the validator as an additional check alongside the literal Done when, rather than
+silently trusting the implementer's self-report or silently absorbing the fix.
+
+### T-04 · attempt 1 · validator · FAIL
+
+Dispatched validator (sonnet), fresh context, task text + Done when verbatim, plus the orchestrator's
+flagged `.env.example` concern, T-02 file-integrity check, CLAUDE.md hard-rule checks, and instruction
+to confirm idempotency via the actual `pgmigrations` table row count (not console text alone).
+
+Verdict returned, verbatim (abridged; full evidence retained in agent history a2bc575):
+
+> verdict: FAIL
+>
+> criterion: `.env.example` must not have been modified with a machine-specific value
+> expected: `.env.example` stays `POSTGRES_PORT=5432` (docker-compose.yml's clean-machine default,
+> validated under T-03)
+> actual: changed to `POSTGRES_PORT=5433`
+> evidence: `git diff HEAD .env.example` shows the one-line change.
+> impact: misleads any other developer/evaluator — they'd start the container on 5432 per
+> docker-compose.yml but the corrupted template would point them at 5433.
+>
+> All other criteria PASS with itemized evidence:
+> 1. `pnpm db:migrate` creates `accounts` + `activity_events`, `timestamptz`, and the
+>    `idx_activity_events_account_time` index on `(account_id, occurred_at)` — confirmed via live
+>    `\d activity_events` run by the validator itself.
+> 2. `migrations/schema.reference.sql` confirmed unmoved (git history shows T-02's original placement,
+>    commit 027035c, untouched) — excluded from migration discovery via node-pg-migrate's own
+>    `ignore-pattern` mechanism, not a file relocation.
+> 3. CLAUDE.md hard rules: SQL not interpolated (DDL, N/A), `seed/seed.sql` untouched, pnpm-only, no
+>    dependency beyond the human-approved `node-pg-migrate`/`@types/node`.
+> 4. Idempotency confirmed via `pgmigrations` table row count = 1 before and after a second run (not
+>    just "No migrations to run!" text).
+
+Single, narrow, confirmed defect — everything else independently re-verified by the validator itself
+(live migration run, live `\d` output, live `pgmigrations` count), not taken on the implementer's
+word. `> attempts:` incremented 0 → 1. Retrying with the same implementer (attempts < 3), scoped
+narrowly to the one fix: revert `.env.example`'s `POSTGRES_PORT` to `5432`, leave the gitignored
+`.env` (5433) as-is, touch nothing else.
+
+### T-04 · attempt 1 · implementer · re-implemented (targeted fix)
+
+Dispatched implementer (sonnet, new context) scoped to exactly the one FAIL: revert
+`.env.example`'s `POSTGRES_PORT` from `5433` to `5432`, touch nothing else. Reported the single-line
+revert done, `pnpm db:migrate` re-run to confirm nothing broke ("No migrations to run!" — local
+gitignored `.env` still carries the working 5433 override).
+
+### T-04 · attempt 1 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, full revalidation (not just the fixed criterion) per
+refinement-attempt rules. Verdict returned, verbatim (abridged; full evidence in agent history
+a5440a4):
+
+> verdict: PASS
+> 1. `.env.example` — `POSTGRES_PORT=5432` confirmed; `git diff HEAD .env.example` empty; git
+>    history shows no changes since T-03's commit f25622d.
+> 2. `pnpm db:migrate` — live run confirmed both tables + `timestamptz` columns +
+>    `idx_activity_events_account_time` btree `(account_id, occurred_at)`, captured live via `\d`.
+> 3. Idempotency — `pgmigrations` row count = 1 before and after a second run.
+> 4. `migrations/schema.reference.sql` — `git log --all` shows only T-02's commit 027035c touched
+>    it; `git diff 027035c HEAD` empty; excluded from discovery via
+>    `.node-pg-migrate.config.cjs`'s `ignore-pattern` + `scripts/run-migrate.js`'s
+>    `--ignore-pattern` flag (config, not relocation).
+> 5. CLAUDE.md hard rules — no SQL interpolation (pure DDL), `seed/seed.sql` untouched since T-02,
+>    no npm/yarn artifacts, only the two human-approved devDependencies present.
+> 6. Migration content — `TIMESTAMPTZ` (not `TIMESTAMP`), `INTEGER` PKs (not `SERIAL`, matching
+>    seed's explicit IDs), index columns in the required order (`account_id, occurred_at`).
+
+All six criteria PASS with itemized, independently-collected evidence (live queries, git history,
+file reads — not implementer self-report). No regressions from the attempt-1 fix. Marker `[x]`,
+`> attempts:` note removed.

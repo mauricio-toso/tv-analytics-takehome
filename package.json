@@ -3,6 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "packageManager": "pnpm@11.22.0",
-  "scripts": {},
-  "devDependencies": {}
+  "scripts": {
+    "db:migrate": "node scripts/run-migrate.js up"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "node-pg-migrate": "9.0.0"
+  }
 }
