@@ -207,7 +207,7 @@ result with `count = 0`; the row count per location is exactly 9 weeks, no more,
 
 ## Phase 3 — Baseline domain, pure (PLAN §9: 1:15, second half)
 
-### [ ] T-09 · P2 · `server/domain/baseline.ts`
+### [x] T-09 · P2 · `server/domain/baseline.ts`
 
 deps: [T-01]
 

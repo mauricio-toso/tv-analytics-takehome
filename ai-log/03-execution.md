@@ -1047,3 +1047,61 @@ All criteria PASS with itemized, independently-collected evidence (validator cho
 account/event-type/week distinct from the implementer's check, including a stronger case — a
 location with *no* events anywhere in the 9-week window for that event type, not just one missing
 week). Marker → `[x]`, `> attempts:` note removed.
+
+---
+
+### T-09 · attempt 0 · implementer · PASS-ready
+
+Dispatched implementer (sonnet) on T-09 (`server/domain/baseline.ts` — pure median/MAD/verdict
+functions, no I/O, no imports, no date arithmetic). Created the file (~186 lines) with five exports:
+
+- `median(values: number[])` — guard clause on empty array, else sorts and takes the midpoint
+  (odd/even handled).
+- `scaledMAD(values: number[])` — `median(|x - median(x)|) × 1.4826`; guard on empty array.
+- `typicalRange(baselineMedian, scaledMadValue)` — `median ± 2·scaledMAD`, each bound
+  `Math.max(0, …)`-floored.
+- `deltaPct(current, baselineMedian)` — `null` when `baselineMedian === 0` (percent-of-zero is
+  undefined, not faked as `0` or `Infinity`).
+- `judgeWeek(currentCount, priorWeekCounts)` — the entry point: two sequential guard clauses
+  (`weeksOfHistory < 4` → `insufficient_history`; `madValue === 0 && weeksOfHistory < 8` →
+  `insufficient_history`, i.e. a zero-spread reading isn't trusted until the full 8-week window is
+  present), then the happy path computes the band and one of `above | below | typical`. The
+  `insufficient_history` branch returns a discriminated-union variant with
+  `baselineMedian/typicalRange/deltaPct` genuinely `null` — enforced at the type level
+  (`BaselineResultWithBand` vs `BaselineResultInsufficientHistory`), not faked as a zero band.
+
+Zero `import`/`require` statements anywhere in the file. Verified via
+`node --experimental-strip-types --check` (no `tsc`/`tsconfig.json` exists anywhere in the repo yet
+— flagged as `DISCOVERED_WORK`, not absorbed: T-09's own wording only requires "compiles" and no
+earlier task added a TypeScript toolchain; a later task, likely T-10 which brings in Vitest, is the
+natural place for it). Implementer wrote and then deleted a throwaway smoke script exercising all
+branches (19 assertions) before reporting back — no test artifacts left in the tree.
+
+### T-09 · attempt 0 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, task text + Done when verbatim, no implementer
+reasoning passed along. Verdict returned, verbatim (abridged; full transcript retained in agent
+history ae37735):
+
+> Verdict: PASS
+> 1. Zero imports of any kind (grep confirmed — the only matches were prose in comments); no
+>    `db/`/`routes/` references; no `Date`/timezone logic anywhere — pure `number[]`/`number` math.
+> 2. Exported surface matches every named requirement: `median`, `scaledMAD` (×1.4826 via
+>    `MAD_SCALE_FACTOR`), `typicalRange` (±2·scaledMAD floored at 0 via `Math.max(0, …)`),
+>    `deltaPct` (null at baseline-median-zero), `judgeWeek` returning
+>    `verdict: "above"|"below"|"typical"|"insufficient_history"` plus `weeksOfHistory`.
+>    `insufficient_history` fires on `<4` weeks OR `madValue===0 && <8` weeks; in both cases fields
+>    are literally `null` at runtime (checked, not just typed), not a faked zero band.
+> 3. Guard clauses lead every function, happy path last — matches
+>    `resources/engineering-principles.md` §4.
+> 4. No `tsconfig.json`/`typescript` dependency exists anywhere in the repo (confirmed via glob and
+>    both package.jsons) — `node --experimental-strip-types --check` → `SYNTAX_OK` accepted as the
+>    available substitute for "compiles," given the task's literal wording and that zero imports
+>    trivially satisfies "outside the standard library."
+> 5. Independently wrote and ran its own throwaway probe (22 assertions, distinct from the
+>    implementer's), exercising every branch including the two distinct `insufficient_history`
+>    paths and confirming their fields are `null` not `0`/`[0,0]`. Probe file deleted after the run;
+>    `git status` confirms `server/domain/` contains only `baseline.ts`.
+
+No PENDING HUMAN note applies (no browser behavior, no hand-verified figure in this task). Marker →
+`[x]`, `> attempts:` note removed.
