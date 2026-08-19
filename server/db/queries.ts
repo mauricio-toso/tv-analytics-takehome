@@ -81,3 +81,22 @@ export const getWeeklyBucketedEventsWithZeroFill = `
     AND ws.week_start = be.week_start
   ORDER BY al.location, ws.week_start DESC;
 `;
+
+/**
+ * Account lookup by id (T-11).
+ *
+ * Used by the normalcy route for two things: detecting an unknown account (no row → 404) and
+ * reading the account's IANA timezone to echo in the response — the same timezone T-08's query
+ * already uses server-side for week bucketing, so this is read-only confirmation, not a second
+ * source of truth for date math.
+ *
+ * Parameters:
+ *   $1: account_id (INTEGER)
+ *
+ * Returns: zero or one row, { id, timezone }.
+ */
+export const getAccountById = `
+  SELECT id, timezone
+  FROM accounts
+  WHERE id = $1;
+`;

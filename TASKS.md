@@ -245,7 +245,7 @@ The tests that justify the median/MAD decision (PLAN §7.1):
 
 ## Phase 4 — API (PLAN §9: 1:00, first half)
 
-### [ ] T-11 · P3 · `GET /api/accounts/:id/normalcy?eventType=&weekStart=`
+### [x] T-11 · P3 · `GET /api/accounts/:id/normalcy?eventType=&weekStart=`
 
 deps: [T-08, T-09]
 

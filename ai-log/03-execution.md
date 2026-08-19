@@ -1169,3 +1169,126 @@ Evidence:
 
 No PENDING HUMAN line applies — no browser-interactive behavior, no hand-verified figure in this
 task (that requirement belongs to T-12+).
+
+---
+
+### T-11 · attempt 0 · implementer · AWAITING
+
+Dispatched implementer (sonnet) on T-11 (`GET /api/accounts/:id/normalcy` route). It built the full
+implementation but could not exercise any of the three required status paths because `express` is
+not installed anywhere in the workspace (confirmed via `node -e "require.resolve('express')"` and by
+running the server, which failed only at the `express` import — everything before it, including TS
+parsing, hand-written param validation, and the DB pool, loaded cleanly).
+
+What it built, pending the install:
+- `server/db/pool.ts` — new `pg.Pool`, reads the same env vars as `scripts/run-seed.js`; confirmed
+  `docker compose ps` shows `dash247-postgres` healthy, so the DB side needs no further setup.
+- `server/db/queries.ts` — added `getAccountById` (id, timezone lookup; parameterized `$1`), used
+  for both the 404 check and the response's `timezone` field, alongside the existing T-08 zero-fill
+  query.
+- `server/routes/normalcy.ts` — hand-written validation (no zod) for all three params: account id
+  (`/^\d+$/`), eventType (checked against the real seed/schema enum read from
+  `migrations/1700000000000_initial-schema.sql`: `call_received | lead_created | appointment_set`),
+  weekStart (`YYYY-MM-DD` shape + real-date check, passed straight through to SQL as a string — no
+  date recomputation in TS). Then: account lookup (404 if missing) → T-08 query → group rows by
+  location → T-09's `judgeWeek` per location → shape response → sort.
+  - Sort/ranking decision, documented in a code comment per T-12's future need: deviation score =
+    `abs(deltaPct)` when defined, else raw `currentCount` (covers baseline-median-0 cases where
+    `deltaPct` is null but a nonzero count is still the signal). `insufficient_history` rows are
+    excluded from the ranked group and placed last, alphabetically — never interleaved.
+  - Empty account (20) falls out naturally: the T-08 query returns zero rows when the account has
+    no locations at all, so `locations: []` in an otherwise well-formed 200 — no special-casing.
+- `server/app.ts` / `server/index.ts` — minimal Express app + entrypoint, not previously scaffolded.
+
+It returned `NEEDS_HUMAN_COMMAND`, verbatim (abridged to the material request):
+
+> Command needed (working directory `C:\Repositories\Challenge`):
+> ```
+> pnpm --filter server add express
+> pnpm --filter server add -D @types/express
+> ```
+> Why: `server/routes/normalcy.ts` and `server/app.ts` import `express` (`Router`, `Request`,
+> `Response`). `server/package.json` currently only has `pg`/`@types/pg`. `saveExact: true` in
+> `pnpm-workspace.yaml` will pin an exact version automatically (registry currently resolves
+> `express@5.2.1`).
+> What I need back: confirmation the install succeeded, so I can run `node server/index.ts` and
+> exercise the three status paths with curl — the literal Done-when for this task.
+
+DISCOVERED_WORK (not absorbed, flagged only): no `start`/`dev` script exists yet in
+`server/package.json` for running the API; it ran `node server/index.ts` directly for verification
+instead of adding a script, to avoid touching package.json/scripts while blocked on an install.
+
+Orchestrator note: `pnpm add` (workspace-filtered form included) is explicitly named as human-run in
+CLAUDE.md and this skill; the implementer correctly stopped rather than attempting a workaround or
+installing `express` itself. Task left `[~]`, `> attempts: 0` unchanged, `> awaiting: pnpm --filter
+server add express && pnpm --filter server add -D @types/express` added.
+
+### T-11 · attempt 0 · human-command · AWAITING resolved
+
+Human reported "done" without pasting output. Orchestrator verified independently rather than
+blocking on a paste (precedent: T-03): `server/package.json` now lists `express: 5.2.1` (dependencies)
+and `@types/express: 5.0.6` (devDependencies), exact-pinned per `saveExact`; `server/node_modules/
+express` present on disk. `> awaiting:` line removed; `> attempts:` stays at 0 (waiting on the human
+is not a failed attempt). Resuming the implementer at the same attempt with this confirmed as fact.
+
+### T-11 · attempt 0 · implementer · re-implemented (resumed)
+
+Resumed implementer with express confirmed installed. It started the server (`node server/index.ts`
+→ "DASH-247 API listening on http://localhost:3000"), confirmed Postgres healthy via `docker compose
+ps`, and exercised all three required status paths plus one extra full-shape example with curl,
+verbatim:
+
+- **400, bad `weekStart`**: `{"error":"invalid weekStart: expected a YYYY-MM-DD date"}`
+- **400, bad `eventType`**: `{"error":"invalid eventType: expected one of call_received,
+  lead_created, appointment_set"}`
+- **404, unknown account** (id 9999): `{"error":"unknown account: 9999"}`
+- **200, empty account 20** (Quiet Harbor Spa, no events): `{"accountId":20,"timezone":"America/
+  Los_Angeles","eventType":"call_received","weekStart":"2026-07-20","locations":[]}`
+- **200, account 6** (the burst-outlier account), full shape with 15 locations, timezone, judged
+  week, and per-location `current`/`baselineMedian`/`typicalRange`/`verdict`/`deltaPct`/
+  `weeksOfHistory` — every verdict reads `typical` even against a wide current-week spread (the
+  median/MAD robustness property PLAN §4 targets), and rows visibly descend by `|deltaPct|` (140,
+  100, 75, 50, 50, 42.9, 25, 25, 20, 20, 14.3, 0, 0, 0) — sort-by-deviation confirmed live, not just
+  by reading the code.
+
+Scratch verification script removed, server process stopped afterward. No test files written
+(T-12's scope, deliberately out). `ai-log/03-execution.md` and `git commit` untouched by the
+implementer, as instructed.
+
+### T-11 · attempt 0 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, task text + Done when verbatim, instructed to
+independently re-derive everything (not trust the implementer's log) including starting its own
+server process and curling all three paths itself. Verdict returned, verbatim (abridged):
+
+> Verdict: PASS
+> 1. Hand-written validation, no zod — `server/routes/normalcy.ts:38-56`, three guard clauses
+>    (account id regex, eventType against a `Set` of the three real seed event types, weekStart
+>    shape regex + `Date` validity check), ~10 lines of actual logic. Grep for `zod` in `server/`
+>    matched only a comment.
+> 2. Parameterized SQL, zero tolerance — both `getWeeklyBucketedEventsWithZeroFill` (T-08) and the
+>    new `getAccountById` use `$1`/`$2`/`$3` placeholders exclusively; grep for template-literal SQL
+>    interpolation found no matches anywhere in `server/`.
+> 3. Response shape — live curl against account 1 confirms `accountId`, `timezone`, `eventType`,
+>    `weekStart`, and per-location `current`/`baselineMedian`/`typicalRange`/`verdict`/`deltaPct`/
+>    `weeksOfHistory`.
+> 4. Sorting — live curl against account 1 (6 locations) returned `deltaPct` values 100, 25, 25, 25,
+>    -9.09, 0 — non-increasing by `abs(deltaPct)`, matching the code's documented deviation measure;
+>    traced live, not just read.
+> 5. Independently started its own server process (`node index.ts`), confirmed Postgres healthy via
+>    `docker compose ps`, and curled all three status paths itself: 400 (bad eventType, bad
+>    weekStart, bad account id — three distinct malformed-input cases, all rejected with a message,
+>    no coercion), 404 (unknown account 9999), 200 (account 20, `locations: []`, well-formed).
+> 6. No test file written for T-11 — `git status --porcelain` shows no new `*.test.ts`;
+>    `server/domain/baseline.test.ts` (T-10) unchanged.
+> 7. Diff scope — only task-relevant files changed; `server/domain/baseline.ts` (T-09) zero diff
+>    against HEAD.
+> 8. No unexpected dependency — `pnpm-lock.yaml` diff adds only `express`/`@types/express` and their
+>    legitimate transitive deps.
+> 9. CLAUDE.md hard rules — `seed/seed.sql` zero diff, SQL parameterized throughout, `weekStart`
+>    passes straight through to SQL as a string; the one `new Date()` call is used only for a `NaN`
+>    validity check and discarded immediately after, never for arithmetic — no week-boundary logic
+>    recomputed in TypeScript.
+
+No PENDING HUMAN applies (no browser-interactive behavior, no hand-verified figure requirement —
+that belongs to T-12). Marker → `[x]`, `> attempts:` note removed.
