@@ -191,7 +191,7 @@ Parameters: account id, event type, judged week. No interpolation anywhere (hard
 from T-06's query 2, and a location's count for one week is reproducible by a second,
 independently-written query.
 
-### [ ] T-08 · P2 · Zero-fill the week series
+### [x] T-08 · P2 · Zero-fill the week series
 
 deps: [T-07]
 

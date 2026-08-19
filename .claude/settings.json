@@ -17,12 +17,7 @@
       "Bash(docker compose ps)",
       "Bash(docker compose logs *)"
     ],
-    "ask": [
-      "Edit(./package.json)",
-      "Edit(./pnpm-lock.yaml)",
-      "Edit(./.npmrc)",
-      "Bash(docker compose exec *)"
-    ],
+    "ask": ["Edit(./package.json)", "Edit(./pnpm-lock.yaml)", "Edit(./.npmrc)"],
     "deny": [
       "Bash(git commit *)",
       "Bash(pnpm install)",

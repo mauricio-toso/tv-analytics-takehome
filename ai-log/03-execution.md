@@ -990,3 +990,60 @@ Verdict returned, verbatim (abridged; full evidence in agent history ab53b4c):
 All criteria PASS with itemized, independently-collected evidence (validator ran its own SQL
 against the live database with its own chosen account/week, distinct from the implementer's
 check — not a re-run of the same numbers). Marker → `[x]`, `> attempts:` note removed.
+
+---
+
+### T-08 · attempt 0 · implementer · re-implemented
+
+Dispatched implementer (sonnet) on T-08 (zero-fill the week series, `server/db/queries.ts`,
+deps: [T-07]). It replaced T-07's `getWeeklyBucketedEvents` with
+`getWeeklyBucketedEventsWithZeroFill`, choosing to extend/replace rather than add a parallel query
+(reasoning: zero-fill is strictly additive over T-07's result, one current answer is cleaner than
+two divergent implementations). Structure: `generate_series` over the judged week + 8 prior weeks,
+a CTE of all distinct locations for the account, CROSS JOIN weeks × locations, LEFT JOIN actual
+deduplicated event counts, `COALESCE(..., 0)` for missing weeks. Preserved T-07's
+`COUNT(DISTINCT (account_id, location, event_type, occurred_at))` dedupe and the double
+`AT TIME ZONE` local-week bucketing; no TypeScript date arithmetic added.
+
+Reported verification, verbatim (abridged):
+
+> Account 6, Site B, call_received, judged week 2026-07-20: raw data shows Site B has events in
+> weeks 2026-07-06 (5) and 2026-07-20 (4) but none in 2026-07-13 — zero-filled query returns that
+> week with count = 0 rather than omitting it. Row count per location for account 6 (15 locations)
+> = exactly 9 each. T-07 dedupe re-verified: account 1, Site C, week 2026-07-06 raw_count=4,
+> deduped_count=3 — matches T-07's own already-validated figure.
+
+No new dependency requested (`generate_series` is native Postgres). Did not touch `seed/seed.sql`,
+PLAN.md, or ai-log/03-execution.md.
+
+### T-08 · attempt 0 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, independent re-derivation only, instructed to pick
+its own account/location/event-type combination rather than re-checking the implementer's example.
+Verdict returned, verbatim (abridged; full evidence in agent history a6027c9):
+
+> verdict: PASS
+> 1. `getWeeklyBucketedEventsWithZeroFill` confirmed: `generate_series` for 9 weeks, CROSS JOIN
+>    locations CTE, LEFT JOIN event-count CTE, `COALESCE(be.event_count, 0)`.
+> 2. Fully parameterized (`$1`/`$2`/`$3`), no string interpolation — grepped, zero matches.
+> 3. Week bucketing via `date_trunc('week', ae.occurred_at AT TIME ZONE 'UTC' AT TIME ZONE
+>    a.timezone)` in SQL only; no `new Date`/`.getTime(`/`setDate`/`Date.now` in the file.
+> 4. Independent zero-fill case, different from the implementer's: account 3 (Bluebird HVAC),
+>    event_type `appointment_scheduled` (account 3 has zero events of this type at all), judged
+>    week 2026-06-15 — Site A and Site B both appear across all 9 weeks with `count = 0`, rather
+>    than being omitted, confirming the zero-fill also holds for a location/event-type combination
+>    with no matching events anywhere in the window, not just a single missing week.
+> 5. Row count exactly 9 per location, independently counted for account 3 (2 locations) and
+>    account 5 (5 locations, real data).
+> 6. T-07 dedupe re-verified independently: account 1, Site C, week 2026-07-06, raw 4 rows / query
+>    returns `event_count = 3`.
+> 7. CLAUDE.md hard rules: `git diff seed/seed.sql` empty; no new dependency (`server/package.json`
+>    unchanged since T-07, `pg`/`@types/pg` only); TASKS.md diff only marker/`> attempts:` lines;
+>    ai-log/03-execution.md has no implementer edits.
+> 8. Scope: no T-09 baseline-domain files found (`**/*baseline*` glob empty) — T-09 correctly not
+>    absorbed into this task.
+
+All criteria PASS with itemized, independently-collected evidence (validator chose its own
+account/event-type/week distinct from the implementer's check, including a stronger case — a
+location with *no* events anywhere in the 9-week window for that event type, not just one missing
+week). Marker → `[x]`, `> attempts:` note removed.
