@@ -223,7 +223,7 @@ Pure functions over an array of weekly counts. No I/O, no imports from `db/` or 
 **Done when:** the module compiles with zero imports outside the standard library, and every branch
 above is reachable from the exported surface.
 
-### [ ] T-10 · P2 · Baseline unit tests — risk 1
+### [x] T-10 · P2 · Baseline unit tests — risk 1
 
 deps: [T-09]
 

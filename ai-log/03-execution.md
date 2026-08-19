@@ -1105,3 +1105,67 @@ history ae37735):
 
 No PENDING HUMAN note applies (no browser behavior, no hand-verified figure in this task). Marker →
 `[x]`, `> attempts:` note removed.
+
+### T-10 · attempt 0 · implementer · AWAITING
+NEEDS_HUMAN_COMMAND
+
+Command:
+```
+pnpm add -D vitest
+```
+
+Working directory: `C:\Repositories\Challenge`
+
+Why needed: `package.json` has no `vitest` devDependency and `node_modules\.bin` has no `vitest`
+binary. T-10 establishes the Vitest runner (config + `pnpm test` script) for the domain unit
+tests. Installing a dependency is a human-run command (CLAUDE.md); the implementer is denied
+from running `pnpm add` itself.
+
+What's needed back: confirmation the command completed successfully (and/or the resulting
+`"vitest"` devDependency line in package.json), so the implementer can proceed to write
+`vitest.config.ts`, add the `"test": "vitest run"` script, write
+`server/domain/baseline.test.ts`, and run `pnpm test`.
+
+### T-10 · attempt 0 · human-command · PASS
+Human ran `pnpm add -D vitest` in `C:\Repositories\Challenge`. Reported: "Done in 5s using pnpm
+v11.22.0". Confirmed via package.json: `"vitest": "4.1.11"` now present in devDependencies.
+Resuming implementer at attempt 0 (unchanged, per protocol).
+
+### T-10 · attempt 0 · validator · PASS
+## Verdict: PASS
+
+task: T-10 — Baseline unit tests — risk 1
+
+Evidence:
+1. baseline.ts untouched by this task — confirmed via git status/git diff: only TASKS.md,
+   ai-log/03-execution.md, package.json, pnpm-lock.yaml modified, plus new untracked
+   server/domain/baseline.test.ts and vitest.config.mts. baseline.ts not in the diff (T-09,
+   already validated, commit 96b8d0e).
+2. Exactly 4 test cases, no more/no fewer — baseline.test.ts:12-69, one describe, 4 test()
+   blocks. No coverage farming.
+3. Test names state falsifiable beliefs, e.g. "an order-of-magnitude outlier does not move the
+   baseline more than a small tolerance", "under naive mean ± 2·stddev the same outlier-inflated
+   band would call a genuine spike 'typical' where median/MAD correctly calls it 'above'".
+4. Outlier-tolerance test verified by hand: outlierFree median = 13, withOutlier median = 13.5,
+   |13.5-13|=0.5 ≤ 1 — tight and true, not vacuous.
+5. Mean/stddev flip claim verified by hand: mean=111.5, stddev≈260.21, mean±2σ band [0, 631.93]
+   contains current=20 → mean/stddev calls it typical. Median/MAD band [10.53, 16.47], 20 > 16.47
+   → "above". Flip is real, matches judgeWeek(20, priorWeeks).verdict === "above" assertion.
+6. All-zero series: judgeWeek(0,[0]*8) → verdict "typical", baselineMedian 0, band {0,0},
+   deltaPct null. weeksOfHistory(8) === FULL_BASELINE_WINDOW_WEEKS(8) so MAD-0 guard not
+   triggered (guard requires <8); non-trivial edge correctly exercised (band-of-width-0, not
+   divide-by-zero).
+7. 3 prior weeks: judgeWeek(10,[8,9,11]) → weeksOfHistory 3 < MIN_WEEKS_OF_HISTORY(4), guard
+   triggers, verdict "insufficient_history", all band fields null, weeksOfHistory 3.
+8. Purity: imports only judgeWeek, median from ./baseline.ts and vitest — no DB, no I/O, no
+   date construction.
+9. vitest.config.mts scoped to include: ["server/**/*.test.ts"], comment notes deliberately
+   minimal for T-10, extended not replaced by later integration tests. package.json adds only
+   "test": "vitest run" script + vitest devDependency (human-installed per NEEDS_HUMAN_COMMAND,
+   logged).
+10. pnpm test run directly: vitest v4.1.11, Test Files 1 passed (1), Tests 4 passed (4). Green.
+11. Scope check: TASKS.md diff is only in-flight marker bookkeeping; ai-log/03-execution.md diff
+    is the honest NEEDS_HUMAN_COMMAND round-trip. Nothing outside task scope touched.
+
+No PENDING HUMAN line applies — no browser-interactive behavior, no hand-verified figure in this
+task (that requirement belongs to T-12+).
