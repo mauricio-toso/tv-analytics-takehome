@@ -96,7 +96,7 @@ against it, and `pnpm-workspace.yaml` contains all four controls (`saveExact`,
 `strictPeerDependencies`, `minimumReleaseAge`, `allowBuilds`), each with a one-line comment saying
 what attack it addresses.
 
-### [ ] T-02 · P1 · Move the starter dataset into the layout PLAN §6 declares
+### [x] T-02 · P1 · Move the starter dataset into the layout PLAN §6 declares
 
 deps: []
 

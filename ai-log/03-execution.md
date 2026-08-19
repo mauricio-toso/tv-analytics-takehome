@@ -393,3 +393,79 @@ permitted). Verdict returned, verbatim (abridged):
 
 No `pnpm config set` or other mutating command used this run. Marker `[x]`, `> attempts:` note
 removed.
+
+---
+
+### T-02 · attempt 0 · implementer · NEEDS_HUMAN_COMMAND (boundary ambiguity)
+
+Dispatched implementer (sonnet) on T-02 (move `code/seed.sql` → `seed/seed.sql` and
+`code/schema.sql` → `migrations/schema.reference.sql`, byte-identical, via `git mv`). It computed
+the pre-move sha256sum of `code/seed.sql`
+(`40e60ee81d999eb32057b4437bc84e9ec197265d4e58c13c0bfbad150e6eaea2` — note: this is 65 hex chars as
+reported, one digit long for a sha256; unverified, flagged for the validator to recompute) then
+found `seed/` and `migrations/` do not exist at repo root and `git mv` will not create parent
+directories. It returned `NEEDS_HUMAN_COMMAND` for `mkdir -p seed migrations`, reasoning that
+`mkdir` is not in `.claude/settings.json`'s Bash allowlist so it cannot run it itself, and
+explicitly declined a redirection workaround (`echo "" > seed/.gitkeep`) as circumventing an
+intentional permission boundary.
+
+Orchestrator note, logged honestly rather than silently applying the protocol: `mkdir` is **not**
+one of the named human-run commands in CLAUDE.md / this skill (those are docker compose up/down and
+pnpm install/add/remove/update/approve-builds — machine-mutating installs and running containers).
+`mkdir -p seed migrations` is a local, repo-scoped, non-mutating-of-the-machine operation with no
+obvious reason to require a human hand. It is, however, genuinely absent from `settings.json`'s
+`allow` list, and under `defaultMode: "default"` a non-interactive subagent cannot satisfy an
+interactive permission prompt — so the block is real, just not one the skill's Human-run-commands
+section names. This is "not covered by a numbered step" per the skill's own top-level instruction,
+so escalating to the human for a decision rather than improvising (either treat it as
+NEEDS_HUMAN_COMMAND-equivalent and get `mkdir -p seed migrations` run/pasted back, or add `Bash(mkdir
+*)` — or similar — to the allowlist). Task left `[~]`, `> attempts: 0` unchanged, `> awaiting: mkdir
+-p seed migrations` added pending the human's choice.
+
+### T-02 · attempt 0 · human-command · AWAITING resolved
+
+Human ran `mkdir -p seed migrations` directly and reported it done. Orchestrator verified
+independently (`ls` at repo root): both `seed/` and `migrations/` now exist. `> awaiting:` line
+removed; `> attempts:` stays at 0 per protocol (waiting on the human is not a failed attempt).
+Resuming the implementer at the same attempt with this output taken as fact.
+
+### T-02 · attempt 0 · implementer · re-implemented (resumed)
+
+Resumed implementer (sonnet, agent a216be7) with the human's `mkdir -p seed migrations` output taken
+as fact. It ran `git mv code/seed.sql seed/seed.sql` and `git mv code/schema.sql
+migrations/schema.reference.sql`, then verified: pre-move sha256sum of `code/seed.sql`
+(`40e60ee81d999eb32057b4437bc84e9ec197265d4e58c13c0bfbad150e6eaea2`) equals post-move sha256sum of
+`seed/seed.sql` (same value) — confirmed a valid 64-hex-char digest on recheck. `code/docs/` and
+`code/seed/generate_seed.py` left untouched. Reported the `Edit(./seed/**)` deny rule already
+correctly covers the new path — no settings.json change needed. Path-discrepancy note relayed for
+this log (below), not written by the implementer itself.
+
+Note relayed from the implementer: CLAUDE.md's rule "never edit `seed/seed.sql`" was aspirational
+when written (the file was still at `code/seed.sql`), and becomes literally enforceable only after
+this move. The `.claude/settings.json` deny rule `Edit(./seed/**)` was already correctly specified
+for the target layout; it now guards the real file at `seed/seed.sql`.
+
+### T-02 · attempt 0 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, task text + Done when verbatim, instructed to verify
+everything independently (no trust in implementer claims). Verdict returned, verbatim (abridged):
+
+> Verdict: PASS
+> 1. `code/seed.sql` gone, `seed/seed.sql` present; `git status`/`git diff --staged --name-status`
+>    show `R100 code/seed.sql seed/seed.sql` (rename, 100% similarity).
+> 2. `code/schema.sql` gone, `migrations/schema.reference.sql` present; `R100` rename confirmed
+>    the same way.
+> 3. `git diff --staged --stat` / `--numstat` / `--summary` all show 0 insertions, 0 deletions, 100%
+>    similarity for both renames — the authoritative byte-identity check since `code/seed.sql` no
+>    longer exists to re-checksum. Current `seed/seed.sql` sha256:
+>    `40e60ee81d999eb32057b4437bc84e9ec197265d4e58c13c0bfbad150e6eaea2`, cross-checked against the
+>    execution log's recorded pre-move value (match).
+> 4. `code/docs/` (`PRODUCT_BACKGROUND.md`, `TICKET.md`) and `code/seed/generate_seed.py` confirmed
+>    present and untouched via `ls -la`.
+> 5. `.claude/settings.json` line 58 `Edit(./seed/**)` — glob matches any path under `./seed/`,
+>    including `./seed/seed.sql` directly. Confirmed by reading the file, not assumed.
+> 6. `R100` status (not `A`+`D`) definitively proves a pure git rename, not a Write/Edit rewrite —
+>    git's rename detection is content-hash-based, and 100% similarity rules out any content
+>    modification.
+
+All six criteria PASS with itemized evidence. Marker `[x]`, `> attempts:` note removed.
