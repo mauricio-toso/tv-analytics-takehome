@@ -1755,3 +1755,20 @@ Evidence (verbatim):
 PENDING HUMAN: reloading the page restores all three controls (account, event type, judged week); pasting the URL into a new tab reproduces the same view. Verified statically only (URL is the sole owner of control state via `useUrlState`, no duplicated React state for the controls, reads/writes go through `location.search`/`history.replaceState`) — not exercised in a browser.
 
 T-14 → [x].
+
+### T-15 · attempt 1 · implementer · DONE
+Implemented the verdict table. Files: `web/src/VerdictBadge.tsx` (new — verdict word + direction/size from `deltaPct`; renders "not enough history" for `insufficient_history`, never a fabricated judgement), `web/src/LocationTable.tsx` (new — native `<table>` over the `locations` array; empty array → explicit "No locations with data for this account." paragraph; maps rows in received order with no client-side sort/filter/group, documented in the file header as deliberate since the API owns the ranking), `web/src/App.tsx` (replaced the `<pre>{JSON.stringify(data)}</pre>` placeholder with `<LocationTable/>`; typed `NormalcyResponse.locations` as `LocationRow[]`), `web/src/styles.css` (minimal table/verdict styling, plain CSS). No NULL-outcome note — correctly omitted per the task's own guidance (nothing in this slice reads `outcome`). `pnpm run build` (tsc -b && vite build) succeeds from `web/`. Implementer noted honestly: no browser/screenshot tool and `curl` denied in its sandbox, so the visual three-state check was not performed by it — verification was build success + static reading + the pre-existing unmodified server integration tests (account 20 empty, insufficient_history mix, ranked ordering). No DISCOVERED_WORK, no BLOCKED_PLAN_CONFLICT.
+
+### T-15 · attempt 1 · validator · PASS
+All criteria verified statically.
+
+1. Components exist, native table, per-row fields — `web/src/LocationTable.tsx` renders `<table>`/`<thead>`/`<tbody>` with columns Location, Last week (`row.current`), Typical range (`formatTypicalRange`), Verdict (`<VerdictBadge>`). `web/src/VerdictBadge.tsx` renders the verdict word plus signed `deltaPct` (direction + size). Controls remain native `<select>` in `App.tsx` (unchanged from T-14).
+2. Empty state — `LocationTable.tsx:44-46`: `if (locations.length === 0) return <p>No locations with data for this account.</p>;` — explicit message, not a blank/zero table. Server confirms account 20 returns `locations: []`.
+3. History state — `VerdictBadge.tsx:22-24`: `if (verdict === "insufficient_history") return <span ...>not enough history</span>;`, and `formatTypicalRange` returns "not enough history" for a `null` range instead of a numeric band. Server-side `judgeWeek` (`server/domain/baseline.ts:144-152, 157-165`) emits that branch for < 4 prior weeks.
+4. No NULL-outcome note — grep of `web/src/` for "outcome": only hit is the doc comment in `LocationTable.tsx:17-18` explaining why there is no note. No rendered UI text references outcome.
+5. Row order — `LocationTable.tsx` maps `locations.map(...)` directly, no `.sort()`/`.filter()`/`.reduce()`/grouping (grep-confirmed, one match — the render map itself). Sorting by deviation happens server-side only (`server/routes/normalcy.ts:138-148`), insufficient_history rows grouped last alphabetically.
+6. Build/typecheck — `pnpm run build` (`tsc -b && vite build`) in `web/` succeeded cleanly, 19 modules transformed, no errors.
+7. No new dependencies / no framework creep — `git diff --stat` shows only TASKS.md (orchestrator marker lines), `web/src/App.tsx`, `web/src/styles.css` plus the two new components. No `package.json` diff. Styling stays in the single `styles.css`.
+8. Constitution guardrails — no diff to `seed/` or `PLAN.md`. `pnpm test` (root): 2 files, 12 tests, all passing.
+
+PENDING HUMAN: the three visual states — account 20's empty-state paragraph, a young location's "not enough history" badge, and a normal ranked row's verdict/deviation rendering — should be confirmed by loading the app in a browser. I verified their code paths exist and are reachable (branches above) and that the build/serve pipeline works, but did not visually render them.

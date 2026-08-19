@@ -341,7 +341,7 @@ Split verification — the validator has no browser:
 - *human-only*: actually reloading the page and actually pasting the URL into a second tab. The
   validator returns `PENDING HUMAN:` for these; confirm them in a browser before committing.
 
-### [ ] T-15 · P3 · The verdict table
+### [x] T-15 · P3 · The verdict table
 
 deps: [T-14]
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useUrlState } from "./useUrlState.ts";
+import { LocationTable, type LocationRow } from "./LocationTable.tsx";
 
 // T-14: the three controls (account, event type, judged week) are read from and written to
 // the URL only — see useUrlState.ts. No React state duplicates them.
@@ -12,7 +13,7 @@ type NormalcyResponse = {
   timezone: string;
   eventType: string;
   weekStart: string;
-  locations: unknown[];
+  locations: LocationRow[];
 };
 
 export function App() {
@@ -94,7 +95,7 @@ export function App() {
 
       {error && <p role="alert">Failed to load: {error}</p>}
       {!error && !data && <p>Loading…</p>}
-      {data && <pre>{JSON.stringify(data, null, 2)}</pre>}
+      {data && <LocationTable locations={data.locations} />}
     </main>
   );
 }

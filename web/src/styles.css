@@ -8,3 +8,28 @@ pre {
   padding: 1rem;
   overflow-x: auto;
 }
+
+table {
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+th,
+td {
+  border: 1px solid #ccc;
+  padding: 0.4rem 0.8rem;
+  text-align: left;
+}
+
+.verdict-above {
+  color: #b45309;
+}
+
+.verdict-below {
+  color: #1d4ed8;
+}
+
+.verdict-insufficient-history {
+  color: #6b7280;
+  font-style: italic;
+}
