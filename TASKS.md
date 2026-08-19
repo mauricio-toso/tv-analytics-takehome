@@ -33,7 +33,12 @@ code + AI log
   and `> awaiting: <command>` (the task is paused on a command the human must run). The
   task-architect writes `deps:` and task text; it never touches markers or these two lines.
 - **`deps:`** sits on one line right under each task heading — `deps: [T-01, T-04]`, or `deps: []`
-  when there are none. Written once by the architect in the harness's Phase 0.
+  when there are none. Written once by the architect in the harness's Phase 0. Dependencies are
+  transitive: a task lists what it directly consumes, not the whole ancestry.
+- **A new dependency belongs to the task that first needs it** — `node-pg-migrate` in T-04, `pg` in
+  T-07, Vitest in T-10, `express` in T-11, Vite/React in T-13, supertest in T-12. T-01 only builds
+  the rails. Installing is the human's act: the implementer stops with `NEEDS_HUMAN_COMMAND` and the
+  exact `pnpm add` line rather than running it (CLAUDE.md, harness boundary rules).
 - Tasks are appended, not rewritten. The history of what was cut is part of the deliverable.
 - If the 4–6h budget runs out mid-list, stop at the last `[x]` and document the rest in the README
   as "what I'd do next" (challenge brief, *Scope & time*). Cut order per PLAN §9: **P4 first, then
@@ -49,6 +54,8 @@ code + AI log
 ## Phase 0 — Runnable skeleton (PLAN §9: 0:45)
 
 ### [ ] T-01 · P1 · pnpm workspace with strict supply-chain config
+
+deps: []
 
 Root `package.json` (private, workspaces `server` + `web`), `.npmrc`, `packageManager` pin.
 No dependencies added yet — this task only establishes the rails.
@@ -66,6 +73,8 @@ attack it addresses.
 
 ### [ ] T-02 · P1 · Move the starter dataset into the layout PLAN §6 declares
 
+deps: []
+
 The starter repo landed under `code/`. The plan's layout says `seed/seed.sql` and expects
 `schema.sql` as the source for migration 0001.
 
@@ -81,6 +90,8 @@ commit body; the `Edit(./seed/**)` deny rule in `.claude/settings.json` now guar
 
 ### [ ] T-03 · P1 · Postgres via docker-compose + `.env.example`
 
+deps: []
+
 Single service, pinned image tag, named volume, healthcheck. `.env.example` documents the
 connection shape only — no real values, ever (principles §3).
 
@@ -88,6 +99,8 @@ connection shape only — no real values, ever (principles §3).
 succeeds, and the whole step is one command in the README draft.
 
 ### [ ] T-04 · P1 · Migration 0001 — schema + index
+
+deps: [T-01, T-02, T-03]
 
 `node-pg-migrate`. Port `schema.reference.sql` to Postgres types (`TIMESTAMP` → `timestamptz`
 semantics decided here and documented: values are UTC), plus the index on
@@ -99,6 +112,8 @@ semantics decided here and documented: values are UTC), plus the index on
 activity_events` output is pasted into the commit body. Re-running is a no-op.
 
 ### [ ] T-05 · P1 · `db:seed` loads `seed/seed.sql` verbatim
+
+deps: [T-02, T-04]
 
 Script pipes the file into psql/`pg` unchanged. No transformation, no cleaning, no dedupe at load
 time — the messiness is the test material (CLAUDE.md hard rules).
@@ -112,6 +127,8 @@ the file (both numbers established here, not assumed from PLAN §3).
 ## Phase 1 — Data reality, verified before any aggregation (PLAN §3)
 
 ### [ ] T-06 · P2 · Verification query set
+
+deps: [T-05]
 
 A committed `docs/verification.sql` (or equivalent) that re-derives every factual claim PLAN §3
 makes, so the plan's numbers stop being trusted and start being checked:
@@ -133,6 +150,8 @@ as-written** (PLAN.md header rule).
 
 ### [ ] T-07 · P2 · Weekly bucketing with duplicate collapse
 
+deps: [T-01, T-06]
+
 `server/db/queries.ts`. One parameterized query, commented as a reviewable artifact
 (conventions → Code organization):
 
@@ -149,6 +168,8 @@ independently-written query.
 
 ### [ ] T-08 · P2 · Zero-fill the week series
 
+deps: [T-07]
+
 Extend T-07: `generate_series` over the judged week and the 8 prior complete weeks, LEFT JOINed
 per `(location)` so a silent location materialises as `0` instead of disappearing.
 
@@ -163,6 +184,8 @@ result with `count = 0`; the row count per location is exactly 9 weeks, no more,
 
 ### [ ] T-09 · P2 · `server/domain/baseline.ts`
 
+deps: [T-01]
+
 Pure functions over an array of weekly counts. No I/O, no imports from `db/` or `routes/`, and
 **no date arithmetic** — SQL already decided the weeks (single source of truth, PLAN §6).
 
@@ -176,6 +199,11 @@ Pure functions over an array of weekly counts. No I/O, no imports from `db/` or 
 above is reachable from the exported surface.
 
 ### [ ] T-10 · P2 · Baseline unit tests — risk 1
+
+deps: [T-09]
+
+This is also where the test runner enters: Vitest config and the `pnpm test` script are established
+here, and every later suite reuses them rather than re-inventing a runner.
 
 The tests that justify the median/MAD decision (PLAN §7.1):
 
@@ -194,6 +222,8 @@ The tests that justify the median/MAD decision (PLAN §7.1):
 
 ### [ ] T-11 · P3 · `GET /api/accounts/:id/normalcy?eventType=&weekStart=`
 
+deps: [T-08, T-09]
+
 Express, imperative shell: query (T-08) → domain (T-09) → response. Hand-written validation of the
 three params at the boundary (~12 lines, no zod, PLAN §6).
 
@@ -207,6 +237,8 @@ body) before any test is written.
 
 ### [ ] T-12 · P3 · Integration tests — risks 2–5 + one hand-verified number
 
+deps: [T-10, T-11]
+
 supertest against the seeded database (PLAN §7):
 
 - **duplicate collapse** — a week containing known duplicate rows counts them once;
@@ -216,9 +248,38 @@ supertest against the seeded database (PLAN §7):
 - **empty account** — account 20 returns `200` with the empty payload, not `500`;
 - **the hand-verified number** — one location/week count computed by hand in SQL (T-06 style) and
   asserted against the endpoint. The SQL goes in a comment above the assertion.
+- **ranking** — for a multi-location account the response comes back most-deviant-first, and the
+  order is not an accident of the query. Detailed below, because it is the easiest of the six to
+  write vacuously.
+
+The ranking test carries the clause the ticket is sharpest about — *which location needs attention*
+— and "sorted by deviation" is currently prose in T-11 and T-15 that nothing demonstrates. It must
+establish three things:
+
+1. the rows are non-increasing in the deviation measure the endpoint ranks on. **That measure is
+   T-11's decision, not this test's** — name it in a comment above the assertion, then assert
+   against it, so removing the sort breaks the test rather than the comment;
+2. the first row is the location an independently hand-written SQL query identifies as the most
+   deviant for that account and judged week — pinned, not merely monotonic;
+3. rows carrying no verdict (`insufficient_history`: no band, therefore no deviation) are grouped
+   rather than interleaved among ranked rows, and the test pins which end they occupy. An untested
+   placement is an accident, not a decision.
+
+Account and judged week are chosen **for a property, not by number**: a multi-location account whose
+deviation order for that week differs *both* from alphabetical location order *and* from the order
+rows arrive in with no `ORDER BY`. Against any other account the assertion passes on an unsorted
+response and proves nothing. Record the chosen account, week, and the query that established the
+property in a comment above the test.
+
+Where that same walk already reads `deltaPct` per row, assert in the same assertion that its sign
+agrees with the verdict (`above` → positive, `below` → negative). No separate test for it.
 
 **Done when:** `pnpm test` is green and the hand-verified figure is traceable to a query, not to the
 code that produced it (principles §7).
+
+Additionally, the ranking test is shown to be non-vacuous: with the endpoint's sort temporarily
+removed it **fails**, demonstrated once with the output in the commit body or AI log, then the sort
+restored. A ranking assertion that has never been seen to fail is decoration.
 
 Split verification: the validator runs the suite and checks every other criterion, but the pinned
 figure must be confirmed **by you** in SQL against the seed — a validating agent is still the
@@ -230,12 +291,16 @@ machine. It returns `PENDING HUMAN:` for it; do that check before committing.
 
 ### [ ] T-13 · P3 · Vite + React shell with `/api` dev proxy
 
+deps: [T-01, T-11]
+
 No router, no state library, no CSS framework. One `styles.css`.
 
 **Done when:** `pnpm dev` starts both processes and the page fetches the endpoint through the proxy
 with no CORS configuration anywhere.
 
 ### [ ] T-14 · P3 · URL-owned control state
+
+deps: [T-13]
 
 A small `useUrlState` hook over native `URLSearchParams` + `history.replaceState`. Three controls:
 account, event type, judged week. The URL is the single source of truth; no duplicate React state.
@@ -253,6 +318,8 @@ Split verification — the validator has no browser:
 
 ### [ ] T-15 · P3 · The verdict table
 
+deps: [T-14]
+
 `LocationTable` + `VerdictBadge` over native `<table>` / `<select>`. Per row: last week's count,
 typical range, verdict word, direction and size of deviation. Sorted by deviation.
 
@@ -260,35 +327,64 @@ Honest states, not blank space (principles §6): account with no data → an exp
 location under 4 weeks of history → "not enough history" instead of a verdict; NULL-outcome
 exclusion stated in the UI where it applies.
 
+On that last clause: nothing in this slice reads `outcome` — the counts are per event type and
+outcome-rate analysis is deferred (PLAN §5). So the correct outcome here is *no* NULL-outcome note,
+not an invented rate to hang one on. It becomes required only if a later task puts `outcome` on the
+page.
+
 **Done when:** account 20 renders the empty state, a young location renders the history state, and
-neither renders a zero presented as a judgement.
+neither renders a zero presented as a judgement. Plus, checkable without a browser: for a
+multi-location account the **rendered row order is exactly the response order** — the table maps the
+array as received and never re-sorts, re-groups or re-filters it client-side, so the ranking the API
+decided (T-12) is the ranking the user reads top-down. The first row in the markup is the first
+element of the payload.
 
 Split verification: the validator confirms the branches exist and are reachable from the rendered
 markup it can fetch; **you** look at the three states in a browser. It returns `PENDING HUMAN:`
-for the visual confirmation.
+for the visual confirmation. The row-order criterion is *not* one of those: it is agent-checkable
+from the markup and from the absence of any sort in the component.
 
 ---
 
 ## Phase 6 — LLM boundary (P4 — first thing cut, PLAN §8/§9)
 
-### [ ] T-16 · P4 · Prompt, stub provider, numeral validator, deterministic fallback
+### [ ] T-16a · P4 · Prompt, stub provider, numeral validator, deterministic fallback
+
+deps: [T-10, T-11]
 
 `server/llm/prompt.ts` (the real prompt, committed) and `server/llm/summary.ts`: minimal provider
 interface, stubbed implementation, schema-constrained output, and the validator — **every numeral in
 the generated text must appear in the input payload, or the output is rejected**. Fallback is a
 template over the same payload, competing on equal terms, not just error handling.
 
-Input is the already-aggregated payload only: the model never sees raw events, never computes a
-delta, never decides a verdict. Cache key `(account, week, eventType)`.
+Input is the already-aggregated payload only — the T-11 response shape, nothing rawer: the model
+never sees raw events, never computes a delta, never decides a verdict. Cache key
+`(account, week, eventType)`.
 
-**Done when:** a unit test feeds a summary containing an invented number and asserts the templated
-fallback is returned instead; deleting the provider entirely leaves every number on the page correct.
+**Done when:** one unit test feeds a summary containing an invented number and asserts the templated
+fallback is returned instead, and a second asserts a provider that throws produces the same fallback
+rather than an error. Both tests call the module with a plain payload object — no Express, no
+database, no HTTP: the trust boundary is visible in the signature (PLAN §8).
+
+### [ ] T-16b · P4 · Wire the summary in as an additive field
+
+deps: [T-15, T-16a]
+
+The route (T-11) gains an optional `summary` in its payload; the page (T-15) renders it as one
+sentence above the table. Absence is normal and never an error (conventions → API contract), and no
+number displayed anywhere comes from it.
+
+**Done when:** with the provider stubbed out entirely, the endpoint still returns `200` and the page
+still renders every count, typical range and verdict — only the sentence is missing; and when the
+sentence does render, every numeral in it also appears in the payload that produced it.
 
 ---
 
 ## Phase 7 — Deliverables (PLAN §9: 0:45)
 
 ### [ ] T-17 · P3 · README
+
+deps: [T-05, T-12, T-13]
 
 Run-locally-in-15-minutes instructions (docker → migrate → seed → dev), one line on how to run the
 tests, stack choice and why, assumptions from PLAN §2, deliberate deferrals from PLAN §5, and what
@@ -298,6 +394,13 @@ another day would buy. Written so the reasoning reconstructs without me in the r
 running app, inside 15 minutes.
 
 ### [ ] T-18 · P3 · AI log sessions closed out
+
+deps: [T-17]
+
+Runs last by construction: its "Done when" ranges over the whole executed task history, so it is
+only completable once every other task in this file has reached a terminal state (`[x]` or `[-]`).
+The `deps:` line names T-17 because a dependency list cannot express "everything"; the real
+constraint is the one just stated.
 
 One file per working session, raw: prompts, the agent's proposal, and accepted / rejected /
 redirected with the reason. Mistakes and corrections go in **as they happened** (CLAUDE.md hard
