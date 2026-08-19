@@ -893,3 +893,100 @@ evidence retained in agent history ae94193):
 
 All criteria PASS with itemized, independently-collected evidence (live queries, git diffs, full
 account listing — not implementer self-report). Marker → `[x]`, `> attempts:` note removed.
+
+---
+
+### T-07 · attempt 0 · implementer · NEEDS_HUMAN_COMMAND
+
+Dispatched implementer (sonnet) on T-07 (weekly bucketing with duplicate collapse,
+`server/db/queries.ts`, deps: [T-01, T-06]). It created the `server/` workspace with a minimal
+`package.json`, then found `pg` not installed and stopped before writing any query code.
+
+It returned `NEEDS_HUMAN_COMMAND`, verbatim:
+
+> **NEEDS_HUMAN_COMMAND**
+>
+> Command:
+> ```bash
+> pnpm add pg @types/pg --filter server
+> ```
+>
+> Working directory: `/c/Repositories/Challenge`
+>
+> Why: T-07 is the first task that needs the `pg` client library to write parameterized SQL queries
+> in `server/db/queries.ts`. Per TASKS.md dependency-ownership rule (line 37-40), "`pg` in T-07"
+> means this task is responsible for introducing the dependency. However, agents cannot run `pnpm
+> add` (CLAUDE.md harness boundary rule), so I've created the `server/` workspace with a minimal
+> package.json and now need the human to install the dependencies.
+>
+> What I need back: Confirmation that the command succeeded and `pg` + `@types/pg` are now listed
+> in `server/package.json` dependencies, so I can proceed to write `server/db/queries.ts`.
+
+Correctly declined to work around the missing dependency. Task left `[~]`, `> attempts: 0`
+unchanged, `> awaiting: pnpm add pg @types/pg --filter server` added.
+
+### T-07 · attempt 0 · human-command · AWAITING resolved
+
+Human ran `pnpm add pg @types/pg --filter server`. No output was pasted back into the conversation
+before re-invoking the loop; orchestrator verified independently (read-only) rather than assuming
+success: `server/package.json` now lists `"pg": "8.23.0"` and `"@types/pg": "8.23.1"` under
+`dependencies`; `server/node_modules/pg/package.json` exists on disk; pnpm's content-addressable
+store (`node_modules/.pnpm`) contains `pg@8.23.0/`. `> awaiting:` line removed; `> attempts:` stays
+at 0. Resuming the implementer at the same attempt with this taken as fact.
+
+### T-07 · attempt 0 · implementer · re-implemented (resumed)
+
+Resumed implementer (agent a285dc1) with `pg`/`@types/pg` confirmed installed. Wrote
+`server/db/queries.ts`: one parameterized query (`getWeeklyBucketedEvents`, `$1` account id,
+`$2` event type, `$3` judged week), duplicate collapse via
+`COUNT(DISTINCT (account_id, location, event_type, occurred_at))` on the natural key (not `id`),
+local week bucketing via `date_trunc('week', occurred_at AT TIME ZONE 'UTC' AT TIME ZONE
+a.timezone)`, grouped by `(location, week_start)`, commented as a reviewable artifact. Did not
+implement T-08's zero-fill/9-week series.
+
+Reported verification, verbatim (abridged):
+
+> Account 1 (Summit Auto Group, America/Chicago), event_type call_received, judged week
+> 2026-02-09. Main query sum across 6 locations = 8+7+3+3+3+6 = 30. Adapted T-06 dedupe query 2
+> filtered to the same account/event_type/week = 30. Match.
+>
+> Second, differently-structured query (CTE) reproducing Site A's count for the same week = 8,
+> matching the main query's Site A row. Match.
+>
+> Bonus: found a real natural-key duplicate (account 1, Site C, call_received,
+> 2026-07-07 20:26:04+00, occurring twice); raw count for that location/week = 4, deduplicated
+> count = 3 — dedupe confirmed non-trivial, not a no-op.
+
+Did not touch seed/seed.sql, PLAN.md, TASKS.md, or ai-log/03-execution.md. No dependency added
+beyond the human-approved pg/@types/pg. No `git commit` run.
+
+### T-07 · attempt 0 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, independent re-derivation only — instructed not to
+trust implementer self-report and to run its own queries against the live seeded database.
+Verdict returned, verbatim (abridged; full evidence in agent history ab53b4c):
+
+> verdict: PASS
+> 1. `server/db/queries.ts` — one query, `$1`/`$2`/`$3` placeholders, no `${...}` interpolation
+>    (grepped, zero matches). Dedupe on `COUNT(DISTINCT (ae.account_id, ae.location,
+>    ae.event_type, ae.occurred_at))` — correct natural-key tuple, not `DISTINCT id`. Week
+>    bucketing `date_trunc('week', ae.occurred_at AT TIME ZONE 'UTC' AT TIME ZONE a.timezone)` —
+>    exact required pattern. Grouped by `(ae.location, week_start)`. 28 lines of comments
+>    explaining dedupe rationale and timezone conversion.
+> 2. Independently re-derived "Done when" with its own account/week choice (account 1,
+>    call_received, week 2026-03-02, different from the implementer's own check): main query sum
+>    across 6 locations = 4+8+8+5+6+2 = 33; independently-run T-06-pattern dedupe total for the
+>    same account/event_type/week = 33 — match. Second, CTE-structured query reproducing Site B's
+>    count (8) for that week — match. Bonus: independently found a different duplicate instance
+>    (Site C, 2026-07-07 20:26:04+00, week 2026-07-06) with raw count 4 vs deduplicated count 3 —
+>    dedupe confirmed working.
+> 3. CLAUDE.md hard rules: no SQL interpolation; `seed/seed.sql` and `PLAN.md` diffs empty;
+>    TASKS.md diff only marker/`> attempts:` lines; ai-log/03-execution.md has no implementer
+>    edits; only `pg`/`@types/pg` added (pre-approved); no TypeScript date arithmetic anywhere in
+>    the file (grepped for `new Date|Date\.|getTime|setTime|parse`, zero matches).
+> 4. Scope: no `generate_series` in the file; query returns only locations with actual events in
+>    the judged week, not a zero-filled 9-week series — T-08 correctly deferred.
+
+All criteria PASS with itemized, independently-collected evidence (validator ran its own SQL
+against the live database with its own chosen account/week, distinct from the implementer's
+check — not a re-run of the same numbers). Marker → `[x]`, `> attempts:` note removed.

@@ -173,7 +173,7 @@ as-written** (PLAN.md header rule).
 
 ## Phase 2 — Aggregation in SQL (PLAN §9: 1:15, first half)
 
-### [ ] T-07 · P2 · Weekly bucketing with duplicate collapse
+### [x] T-07 · P2 · Weekly bucketing with duplicate collapse
 
 deps: [T-01, T-06]
 

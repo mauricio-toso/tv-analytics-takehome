@@ -1,0 +1,10 @@
+{
+  "name": "server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@types/pg": "8.23.1",
+    "pg": "8.23.0"
+  }
+}
