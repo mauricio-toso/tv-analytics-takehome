@@ -53,3 +53,20 @@ Kept up to date as sessions accumulate; details inline in each session file.
 6. **Median/MAD over "simpler" mean** — the agent defended the statistically robust baseline
    against the simplicity instinct, on the grounds that the seed's account-6 burst makes the
    simple version *incorrect*, and "minimal means minimal-correct". (S01, E3/E6)
+7. **tests.md copied from the wrong repo** — I pasted a test rule from my design-system project;
+   the agent flagged it as Angular-specific and instructing commands this repo's settings deny.
+   (S02, E4)
+8. **My harness draft violating my own principles** — 7-state machine duplicating TASKS.md state,
+   parallelism contradicting one-task-one-commit, missing frontmatter making my agents inert.
+   (S02, E2/E3)
+
+9. **An assumed decision, written into this log as mine** — the agent recommended 3 agents; I had
+   already written 4 files following its earlier proposal. It read that as my deliberate override,
+   proceeded on it, and recorded a justification I never gave. Caught when I asked why the
+   implementers weren't unified. Unified now; the log entry was rewritten to what happened.
+   (S02, E6)
+
+**Where I constrained the agent:**
+
+10. **Human-only commits** — my rule at the plan gate; the agent hardened it beyond what I asked
+    (settings deny, not just prompt rules). (S02, E5)

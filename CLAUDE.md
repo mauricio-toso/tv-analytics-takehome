@@ -11,6 +11,24 @@ see [resources/CHALLENGE.md](resources/CHALLENGE.md)).
    frozen for this project (stack, patterns, data handling). Don't re-litigate them; if you
    believe one is wrong, say so explicitly and wait — never silently deviate.
 3. [PLAN.md](PLAN.md) — the implementation plan. Scope changes go through this file first.
+4. [TASKS.md](TASKS.md) — the plan broken into atomic, individually verifiable units. This is
+   where work is picked up; never start from a free-form request.
+
+## How work flows here (spec-driven)
+
+Constitution (1–2) → spec/plan (3) → tasks (4) → code. The direction is one-way: a task may not
+contradict the plan, and the plan may not contradict the principles. Work exactly one task at a
+time and stop when its **Done when** is demonstrated. If a task turns out to need something nobody
+wrote down, append a new task — don't widen the one in hand; if it turns out the *plan* is wrong,
+say so and fix PLAN.md before touching code.
+
+Execution runs through the SDD harness: the `sdd-loop` skill (deterministic orchestrator) routes
+each task to the agents in `.claude/agents/` (task-architect, implementer, validator) and logs
+every verdict to `ai-log/03-execution.md`. Two boundary rules, both enforced in settings, not
+merely requested: **agents create and edit files, only the human commits** (`git commit` denied),
+and **agents never change the machine** — `docker compose up/down` and `pnpm install/add/remove/
+update` are the human's, run in their terminal. An agent needing one stops with
+`NEEDS_HUMAN_COMMAND` instead of working around the denial.
 
 ## Hard rules for agents
 
