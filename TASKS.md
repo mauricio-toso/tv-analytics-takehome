@@ -136,7 +136,7 @@ semantics decided here and documented: values are UTC), plus the index on
 **Done when:** `pnpm db:migrate` on an empty database creates both tables and the index; `\d
 activity_events` output is pasted into the commit body. Re-running is a no-op.
 
-### [ ] T-05 · P1 · `db:seed` loads `seed/seed.sql` verbatim
+### [x] T-05 · P1 · `db:seed` loads `seed/seed.sql` verbatim
 
 deps: [T-02, T-04]
 

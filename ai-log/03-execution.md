@@ -773,3 +773,35 @@ a5440a4):
 All six criteria PASS with itemized, independently-collected evidence (live queries, git history,
 file reads — not implementer self-report). No regressions from the attempt-1 fix. Marker `[x]`,
 `> attempts:` note removed.
+
+### T-05 · attempt 1 · implementer · re-implemented
+
+Dispatched implementer (sonnet) for T-05. Created scripts/run-seed.js: reads seed/seed.sql via
+fs.readFileSync, pipes the raw string unchanged into `docker compose exec ... psql` stdin (no
+parsing, no statement splitting, no dedupe) — same connection/.env pattern as run-migrate.js.
+Added `db:seed` script to root package.json. Ran migrate (no-op, already applied) then seed against
+the live container; reported counts accounts=20, activity_events=12626, cross-checked against
+`grep -c "^INSERT INTO ..."` on seed/seed.sql (20 / 12626 — matches). Noted re-running the seed
+script fails on primary-key constraint violations by design — no idempotency/dedupe added, per the
+hard rule that messiness is test material, not something to clean up at load time.
+
+### T-05 · attempt 1 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, independent re-derivation only. Verdict PASS with
+itemized evidence it collected itself:
+
+1. Done-when counts: live `SELECT count(*)` accounts=20, activity_events=12626; independently
+   grepped `^INSERT INTO accounts` / `^INSERT INTO activity_events` in seed/seed.sql — 20 / 12626,
+   exact match.
+2. `seed/seed.sql` untouched: sha256 of current file == sha256 of the T-02 commit (027035c) blob;
+   git log --follow shows only the T-02 move, nothing since.
+3. Read scripts/run-seed.js directly: fs.readFileSync → psql.stdin.write, no intermediate parsing,
+   filtering, splitting or dedupe logic anywhere in the path.
+4. docker compose ps: postgres service healthy.
+5. package.json db:seed wired to `node scripts/run-seed.js`, no new dependency added (built-in
+   node modules + docker compose exec only) — nothing requiring human-run `pnpm add`.
+6. No npm/yarn usage, no SQL interpolation (static file piped, not constructed).
+7. git status: only TASKS.md (orchestrator marker), package.json, scripts/run-seed.js (new) changed
+   — ai-log/03-execution.md untouched by the implementer.
+
+No FAIL criteria. Marker → `[x]`, `> attempts:` note removed.
