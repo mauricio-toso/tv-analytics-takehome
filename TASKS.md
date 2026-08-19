@@ -53,23 +53,48 @@ code + AI log
 
 ## Phase 0 — Runnable skeleton (PLAN §9: 0:45)
 
-### [ ] T-01 · P1 · pnpm workspace with strict supply-chain config
+### [x] T-01 · P1 · pnpm workspace with strict supply-chain config
 
 deps: []
 
-Root `package.json` (private, workspaces `server` + `web`), `.npmrc`, `packageManager` pin.
-No dependencies added yet — this task only establishes the rails.
+Root `package.json` (private, workspaces `server` + `web` via `pnpm-workspace.yaml`),
+`packageManager` pin. No dependencies added yet — this task only establishes the rails.
 
-- `save-exact=true`; lockfile committed; lifecycle scripts blocked with an empty-for-now
-  `onlyBuiltDependencies`; `minimumReleaseAge` set as the cooling-off window.
-- Plan ref: §6 *Security / supply chain*; principles §3.
-- **The lockfile does not exist yet**, so `pnpm-lock.yaml` has to be generated once before it can
-  be verified. `pnpm install` is a human-run command (see the harness protocol): the implementer
-  writes the config files, then requests it; the human runs it and reports back.
+**Spec corrected for pnpm 11** (original wording put all four controls in `.npmrc`; pnpm 11 does
+not read them there — see `ai-log/03-execution.md`, T-01 attempt-1 entries, for the sourced
+correction and why). In pnpm 11, `.npmrc` is reserved for auth/registry credentials only; every
+other project-level pnpm setting lives in `pnpm-workspace.yaml`. This task creates no `.npmrc` —
+there is no auth/registry setting yet to put in one.
+
+`pnpm-workspace.yaml` carries, alongside the existing `packages:` list, four settings — each with
+a one-line YAML comment naming the attack it addresses:
+
+- `saveExact: true` — exact versions, no caret/tilde ranges a compromised release could satisfy.
+- `strictPeerDependencies: true` — fails install on missing/invalid peer deps rather than silently
+  resolving an unintended version.
+- `minimumReleaseAge` — cooling-off window (minutes) against hijacked/just-published releases. pnpm
+  11's own default is `1440` (24h); state it explicitly rather than relying on the implicit default,
+  so the control is documented, not incidental.
+- `allowBuilds: {}` — empty-for-now build-script allowlist. This **replaces** `onlyBuiltDependencies`,
+  which pnpm 11 removed (along with `onlyBuiltDependenciesFile`, `neverBuiltDependencies`,
+  `ignoredBuiltDependencies`, `ignoreDepScripts`) in favor of `allowBuilds`, a package-matcher map of
+  `true`/`false`. pnpm 11's `strictDepBuilds` (default `true`) already fails install on unreviewed
+  build scripts; `allowBuilds: {}` keeps the allowlist empty rather than turning that off.
+
+- Plan ref: §6 *Security / supply chain* (the four controls named there — exact versions, blocked-
+  by-default lifecycle scripts with an allowlist, a release cooling-off window, pinned pnpm — are
+  unchanged in intent; only *where* pnpm 11 expects each one declared has moved); principles §3.
+- **The lockfile does not exist yet.** Verify empirically before assuming `pnpm install` must run
+  first: in this pnpm version, `pnpm install --frozen-lockfile` (already agent-run-allowed) may
+  generate a lockfile from nothing when there are zero declared dependencies — confirmed by the
+  orchestrator in an isolated directory during T-01's escalation, not yet re-confirmed against the
+  real repo layout. If it does not behave that way once `server`/`web` exist with real deps, request
+  `pnpm install` as `NEEDS_HUMAN_COMMAND` as originally planned.
 
 **Done when:** `pnpm-lock.yaml` exists and is committed, `pnpm install --frozen-lockfile` exits 0
-against it, and `.npmrc` contains all four controls, each with a one-line comment saying what
-attack it addresses.
+against it, and `pnpm-workspace.yaml` contains all four controls (`saveExact`,
+`strictPeerDependencies`, `minimumReleaseAge`, `allowBuilds`), each with a one-line comment saying
+what attack it addresses.
 
 ### [ ] T-02 · P1 · Move the starter dataset into the layout PLAN §6 declares
 

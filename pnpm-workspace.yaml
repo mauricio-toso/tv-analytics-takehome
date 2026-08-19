@@ -1,0 +1,15 @@
+packages:
+  - 'server'
+  - 'web'
+
+# Addresses: version range confusion - pins exact versions, no caret/tilde ranges that could pull compromised releases
+saveExact: true
+
+# Addresses: dependency confusion - fails install if peer dependencies are unmet, preventing resolution ambiguity
+strictPeerDependencies: true
+
+# Addresses: zero-day hijack window - 24-hour cooling-off period blocks just-published compromised releases (minutes)
+minimumReleaseAge: 1440
+
+# Addresses: malicious install scripts - blocks lifecycle hooks by default, only allowlisted packages may execute
+allowBuilds: {}

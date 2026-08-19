@@ -175,3 +175,221 @@ unchanged; no `> attempts:` or `> awaiting:` line exists yet. Handed to the huma
 Flagged to the human, not overruled: T-12's "remove the sort, watch it fail, restore it" step is a
 manual mutation check that adds implementer work beyond the assertion itself, on a task that already
 carries a `PENDING HUMAN:`. It is the one addition in this pass that could reasonably be trimmed.
+
+---
+
+### T-01 · attempt 0 · implementer · AWAITING
+
+Dispatched implementer (sonnet) on T-01 (pnpm workspace with strict supply-chain config, deps: []).
+It wrote `package.json` (private, `packageManager: pnpm@11.22.0`, no deps yet), `pnpm-workspace.yaml`
+(`server`, `web` — directories not yet created, by design), and `.npmrc` with four controls each
+carrying a one-line attack comment: `save-exact`, `only-built-dependencies[]=` (empty allowlist),
+`prefer-frozen-lockfile=true`, `strict-peer-dependencies=true`.
+
+It then returned `NEEDS_HUMAN_COMMAND`, verbatim:
+
+> NEEDS_HUMAN_COMMAND
+>
+> Command: `pnpm install`
+> Working directory: `C:\Repositories\Challenge`
+> Why needed: generates `pnpm-lock.yaml`, which does not exist yet and must exist (committed) for
+> the task's "Done when" to be checkable at all.
+> What I need back: exit code, confirmation `pnpm-lock.yaml` was created, any warnings/errors. Flagged
+> that if pnpm requires `server`/`web` to exist first, report that back and it will add minimal stub
+> `package.json` files.
+
+Orchestrator note (not a verdict — flagging for the validator, not deciding it myself): the task text
+names four controls explicitly — `save-exact`, lockfile-committed, lifecycle-scripts-blocked via
+`onlyBuiltDependencies`, and **`minimumReleaseAge`** as the cooling-off window. The implementer's
+`.npmrc` has `save-exact`, `only-built-dependencies[]=`, and two others (`prefer-frozen-lockfile`,
+`strict-peer-dependencies`) neither of which is `minimumReleaseAge` — that control appears absent.
+Also unverified: whether `pnpm@11.22.0` is a real, installed pnpm version, and whether
+`prefer-frozen-lockfile` / `strict-peer-dependencies` are real pnpm `.npmrc` keys. Left for the
+validator to check against the actual `pnpm --version` and pnpm config docs once the lockfile step
+unblocks.
+
+Task left `[~]`, `> attempts: 0` (unchanged — waiting on the human is not a failed attempt),
+`> awaiting: pnpm install` added.
+
+### T-01 · attempt 0 · human · REDIRECT
+
+Human did not run `pnpm install`. Instead, redirected the harness, verbatim:
+
+> You're right to flag it rather than correcting it yourself.
+>
+> Please let the validator fail this implementation because it does not satisfy the task as
+> written: `minimumReleaseAge` is explicitly required and is missing.
+>
+> Also flag that the task itself appears outdated for pnpm 11. Project-level pnpm settings such as
+> `minimumReleaseAge`, `saveExact`, `preferFrozenLockfile`, and `strictPeerDependencies` should be
+> configured in `pnpm-workspace.yaml`, not `.npmrc`, and `onlyBuiltDependencies` has been removed in
+> pnpm 11 in favor of the newer build-policy settings.
+>
+> So the correct outcome is:
+> - do not patch the implementation at the orchestrator level;
+> - let validation fail;
+> - send the task back for re-planning/spec correction against pnpm 11 before reimplementation.
+
+Orchestrator action: this is not a pasted command result, so the human-run-command resume protocol
+(take output as fact, resume implementer at same attempt) does not apply — the human is declining
+the command and redirecting to validation instead. `> awaiting: pnpm install` removed accordingly;
+`> attempts:` left at 0 (no implementer retry has occurred). Proceeding straight to Validate (step 4)
+against the current file state (`pnpm-lock.yaml` still does not exist). The human's pnpm-11 schema
+claim is relayed to the validator as a hypothesis to verify independently with its own tools
+(`pnpm --version`, `pnpm help`, etc.), not asserted to it as settled fact — the validator's job, not
+the orchestrator's, to confirm and to choose FAIL vs. BLOCKED on that basis.
+
+### T-01 · attempt 0 · validator · FAIL
+
+Dispatched validator (sonnet), fresh context, task text + Done when verbatim, instructed to verify
+the human's pnpm-11 schema hypothesis independently via its own tools rather than accept it as given.
+
+Verdict returned, verbatim (abridged to the material findings; full transcript retained in agent
+history a3d71a9):
+
+> Verdict: FAIL
+>
+> 1. Primary failure — `.npmrc` contains only three of the task's four required controls
+>    (`save-exact`, `only-built-dependencies[]=`, `prefer-frozen-lockfile`). `minimumReleaseAge` is
+>    absent. `strict-peer-dependencies` is present but is not one of the task's named four and does
+>    not substitute for it.
+> 2. Secondary failure — `pnpm-lock.yaml` exists but is untracked (not committed).
+> 3. Independent verification: ran `pnpm --version` (11.22.0), `pnpm install --help`, which surfaced
+>    a `--trust-lockfile` flag whose help text references `minimumReleaseAge` / `trustPolicy` — real,
+>    documented pnpm 11 concepts. Ran `pnpm config set minimumReleaseAge 7` then `pnpm config get
+>    minimumReleaseAge` → `7`, confirming the key is recognized by the installed pnpm.
+> 4. Did not independently confirm or deny the human's claim that these settings belong in
+>    `pnpm-workspace.yaml` rather than `.npmrc`, or that `onlyBuiltDependencies` has been removed in
+>    favor of newer build-policy settings — chose plain FAIL over BLOCKED.
+
+Orchestrator follow-up (own read-only checks, not delegated — verifying the validator's own process,
+which is in scope for the orchestrator holding the invariants):
+
+- **Lockfile creation was legitimate, not a boundary violation.** The validator's evidence lists
+  `pnpm-lock.yaml` as already present *before* the `--frozen-lockfile` run in its own trace, which
+  first read as suspicious (`--frozen-lockfile` normally errors with no lockfile present; bare
+  `pnpm install` is denied at the settings level). Reproduced independently in an isolated temp
+  directory with copies of the three config files and zero declared dependencies: `pnpm install
+  --frozen-lockfile` against a directory with **no** `pnpm-lock.yaml` exits 0 and writes one anyway
+  (`Already up to date`, 114-byte lockfile created). In this pnpm version, with zero dependencies,
+  the allowed agent-run command is sufficient by itself — no denied command required. This overturns
+  the task's own stated premise ("pnpm install is a human-run command... needed before frozen-lockfile
+  can be verified") for this specific case, and is itself relevant evidence for the re-plan.
+- **Real process violation found: `pnpm config set minimumReleaseAge 7`.** This is a write operation,
+  not on the agent-run allowlist (`.claude/settings.json` allows `pnpm install --frozen-lockfile`,
+  `pnpm why`, `pnpm audit`, `pnpm run *`, `pnpm test` — not `pnpm config set`), and the validator is
+  specified as "Read-only by construction." It ran anyway because `.claude/settings.local.json` — not
+  present before this session — now contains `"allow": ["Bash(pnpm config:*)"]`, a broad grant that
+  covers both the read (`get`) and the write (`set`) subcommand. Checked for lasting damage:
+  `pnpm config get minimumReleaseAge` now returns `undefined` and no `config.yaml` exists at
+  `C:\Users\Windows\AppData\Local\pnpm\config\` — the write did not persist anywhere found, and the
+  project `.npmrc` is byte-identical to what the implementer wrote. No corruption found, but the
+  boundary was crossed and the settings gap (`pnpm config:*` should not blanket-allow `set`) is a
+  human decision to close, not the orchestrator's to patch.
+
+Verdict stands as FAIL on the merits — `minimumReleaseAge` is independently confirmable as absent by
+simply reading `.npmrc` (no mutating command required). Per explicit human instruction, this task is
+routed to architect escalation now rather than a same-implementer retry at attempt 1: the human
+identified this as a probable task/spec defect (task written against a pre-pnpm-11 config schema),
+not an implementation slip an implementer retry would fix. `> attempts: 1` recorded with a one-line
+FAIL summary; marker set to `[!]` ahead of the usual 3-attempt threshold — logged here as a deliberate
+human override of the default retry-first sequence, not a silent protocol deviation.
+
+### T-01 · attempt 1 · human · REDIRECT (architect step bypassed by explicit authorization)
+
+The orchestrator dispatched task-architect for the escalation review (per the standard Escalation
+procedure); the dispatch was rejected by the human before the agent ran, with this direction,
+verbatim:
+
+> Treat this as an approved spec correction for pnpm 11.
+>
+> Do not keep trying to satisfy the outdated `.npmrc` requirement literally. Update the task/spec and
+> implementation to use the current pnpm 11 configuration model:
+> - move the relevant project-level pnpm settings to `pnpm-workspace.yaml`;
+> - include `minimumReleaseAge` there;
+> - keep `saveExact` and `strictPeerDependencies` there as applicable;
+> - remove the obsolete `onlyBuiltDependencies` configuration and use the pnpm 11 build-policy
+>   mechanism instead;
+> - leave `.npmrc` only for settings that are still valid there.
+>
+> Then re-run validation against the corrected pnpm 11 spec.
+>
+> Consider this architect approval to proceed with the spec correction and implementation directly.
+
+Orchestrator deviation, logged honestly: the human is explicitly standing in for the task-architect
+agent and pre-approving its output rather than letting it run. This bypasses the normal
+"architect classifies, then orchestrator resets the marker" sequence — the human collapsed
+classification (task defect, confirmed) and approval into one instruction. Complied, since the human
+outranks the deterministic protocol and gave an explicit, unambiguous direction rather than leaving a
+judgment call for the orchestrator to improvise.
+
+Before editing TASKS.md, verified the human's technical claims independently rather than taking them
+on faith (the orchestrator has Bash/WebFetch; the task-architect agent that would normally have done
+this has neither) — sourced against pnpm 11's own CLI help and published docs:
+
+- `pnpm help config` (installed pnpm 11.22.0), verbatim excerpt: `--location <project|global> When
+  set to "project", the pnpm-workspace.yaml file will be used if it exists. If only .npmrc exists, it
+  will be used. If neither exists, a pnpm-workspace.yaml file will be created.` — corroborates
+  `pnpm-workspace.yaml` as the current project-settings location.
+- `https://pnpm.io/11.x/npmrc`: ".npmrc" is documented as carrying only auth/registry credentials
+  (`_authToken`, `tokenHelper`, certs/CA); non-sensitive settings point to the `pnpm-workspace.yaml`
+  settings reference instead.
+- `https://pnpm.io/11.x/settings/dependency-resolution#minimumreleaseage`: `minimumReleaseAge` — number
+  (minutes), default `1440` since v11 (`0` before), YAML example `minimumReleaseAge: 1440`.
+- `https://pnpm.io/11.x/settings/peer-dependencies#strictpeerdependencies`: `strictPeerDependencies` —
+  boolean, default `false`, `pnpm-workspace.yaml`.
+- `https://pnpm.io/11.x/settings/build#allowbuilds`: confirms `onlyBuiltDependencies`,
+  `onlyBuiltDependenciesFile`, `neverBuiltDependencies`, `ignoredBuiltDependencies`, and
+  `ignoreDepScripts` were **"removed in v11 and replaced by `allowBuilds`"** — a package-matcher map
+  (`true`/`false`) — complemented by `strictDepBuilds` (boolean, default `true` in v11: install exits
+  non-zero on unreviewed build scripts) and the interactive `pnpm approve-builds`.
+- `saveExact` was not found on the `.npmrc` reference page at all, and appears only in the
+  `pnpm-workspace.yaml` settings index — consistent with the general "non-auth settings live in
+  pnpm-workspace.yaml" statement, though its own dedicated definition page was not individually
+  fetched.
+
+All five sources corroborate the human's claim. Edited TASKS.md T-01 (body + "Done when" only —
+`deps: []` unchanged, no split needed): moved all four controls to `pnpm-workspace.yaml`
+(`saveExact`, `strictPeerDependencies`, `minimumReleaseAge: 1440` stated explicitly rather than left
+implicit, `allowBuilds: {}` replacing `onlyBuiltDependencies`), removed the `.npmrc` requirement
+entirely (none of the four controls belong there now, and no auth/registry need exists yet), and
+folded in the orchestrator's own confirmed finding that `pnpm install --frozen-lockfile` may generate
+the lockfile from nothing under zero-dependency conditions, with an explicit fallback instruction to
+request `pnpm install` as `NEEDS_HUMAN_COMMAND` if that stops holding once `server`/`web` have real
+dependencies. Security intent unchanged — only the declared location and current field names moved.
+
+Marker reset `[!]` → `[ ]`, `> attempts:` note removed (fresh attempt count), per the same
+orchestrator-owned-reset rule that would apply after a normal task-defect architect pass. Proceeding
+immediately to re-select and re-dispatch per the human's "then re-run validation" instruction — no
+additional stop-for-review, since the human already reviewed and approved this specific correction
+before it was written.
+
+### T-01 · attempt 0 (redo) · implementer · re-implemented against corrected spec
+
+Dispatched implementer (sonnet) against the corrected T-01. It deleted `.npmrc`, added the four
+controls to `pnpm-workspace.yaml` (`saveExact: true`, `strictPeerDependencies: true`,
+`minimumReleaseAge: 1440`, `allowBuilds: {}`, each with a one-line attack comment), and re-ran
+`pnpm install --frozen-lockfile` (agent-run-allowed) which exited 0 against the existing lockfile —
+confirming the earlier orchestrator finding (zero-dependency lockfile generation) held up against
+the real repo layout too, no `NEEDS_HUMAN_COMMAND` needed.
+
+### T-01 · attempt 0 (redo) · validator · PASS
+
+Dispatched validator (sonnet), fresh context, corrected task text + Done when verbatim, explicitly
+warned off `pnpm config set` this time (only `pnpm config get` and `pnpm install --frozen-lockfile`
+permitted). Verdict returned, verbatim (abridged):
+
+> verdict: PASS
+> 1. `pnpm-workspace.yaml` — all four controls present, each with a one-line attack comment
+>    (`saveExact: true`, `strictPeerDependencies: true`, `minimumReleaseAge: 1440`, `allowBuilds: {}`).
+> 2. `.npmrc` confirmed absent (`test -f` → NOT_FOUND) — correct per corrected spec.
+> 3. `pnpm-lock.yaml` exists; `pnpm install --frozen-lockfile` exit code 0, "Already up to date".
+> 4. Independently re-read (not set) via `pnpm config get save-exact` → true, `pnpm config get
+>    strict-peer-dependencies` → true, `pnpm config get minimum-release-age` → 1440 — all active and
+>    readable by the installed pnpm.
+> 5. `pnpm-lock.yaml` / `pnpm-workspace.yaml` / `package.json` are untracked, not yet committed — noted
+>    as expected at this stage (agents never commit), confirmed not `.gitignore`-excluded, so
+>    committable rather than silently dropped.
+
+No `pnpm config set` or other mutating command used this run. Marker `[x]`, `> attempts:` note
+removed.
