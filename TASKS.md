@@ -260,7 +260,7 @@ empty payload. Response carries account timezone, judged week, and per location:
 **Done when:** each of the three status paths is exercised by hand (`curl` output in the commit
 body) before any test is written.
 
-### [ ] T-12 · P3 · Integration tests — risks 2–5 + one hand-verified number
+### [x] T-12 · P3 · Integration tests — risks 2–5 + one hand-verified number
 
 deps: [T-10, T-11]
 
@@ -445,4 +445,45 @@ nothing in the log has been tidied after the fact.
 New tasks discovered during implementation go here with the task that revealed them, so the
 difference between what was planned and what was actually needed stays visible.
 
-_(empty)_
+### [x] T-19 · P2 · Bound zero-fill at each location's first event, so `insufficient_history` is reachable
+
+deps: [T-08, T-09, T-11]
+
+Revealed by T-12. The implementer verified empirically that `insufficient_history` is unreachable
+through the live endpoint for **any** input against the seed: T-08's unconditional `generate_series`
+manufactures exactly 9 rows (judged week + 8 prior) per location regardless of real history, so
+`weeksOfHistory` is always 8 and neither domain branch (< 4 prior weeks; MAD 0 with < 8 weeks) can
+fire. Confirmed by brute-force enumeration of all 1,539 (account, eventType, judged-week)
+combinations with ≥ 3 locations — zero produced `insufficient_history`. That contradicts PLAN §2
+("a new location shows *not enough history*, not a false baseline") and left T-12's ranking
+requirement #3 untestable (omitted there with an explanatory comment, not faked).
+
+Classification: **task defect in T-08**, whose "no more, no less" clause over-specified relative to
+the plan; the plan wins. T-08's text stays as written (tasks are appended, not rewritten) — this
+task **supersedes** that clause. Amended criterion: **exactly `min(9, weeks since the location's
+first event)` rows per location.**
+
+The fix, in `server/db/queries.ts` (the T-08 query) only:
+
+- Add a CTE computing each location's first-ever event — `MIN(occurred_at)` per
+  `(account, location)`, truncated to week **in the account's timezone** — and discard series weeks
+  earlier than that first week. All in the same SQL query: no date logic in TypeScript (PLAN §6,
+  weeks are decided in SQL only).
+- **No changes** to `server/domain/baseline.ts` or the route: the domain already accepts
+  variable-length arrays and already implements both `insufficient_history` branches.
+- **Deliberate semantic decision:** the cutoff is the location's first event of **any** event type,
+  not of the queried type. A location 8+ weeks old that never produced the queried event type gets
+  real zeros (baseline 0, verdict `typical`) — that is data, not missing history.
+  `insufficient_history` is reserved for genuinely new locations. The per-event-type cutoff is
+  considered and rejected here, not forgotten.
+
+Consequence: once this lands, T-12's ranking requirement #3 (insufficient_history rows grouped at
+a pinned end) becomes testable; re-enabling that omitted sub-assertion belongs to **T-12's** scope,
+not this task's.
+
+**Done when:** (1) for a location whose first event predates the judged week by 8+ weeks, the query
+still returns exactly 9 rows; (2) for a location with fewer than 4 complete prior weeks of
+existence, it returns correspondingly fewer rows — both shown with the SQL and its output;
+(3) `insufficient_history` is demonstrated reachable through the live endpoint against the seed —
+a concrete (account, eventType, weekStart) yielding it, with the independent SQL that verifies that
+location's first-event week; (4) existing tests (T-10, T-12's committed suite) stay green.

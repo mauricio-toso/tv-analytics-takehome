@@ -1292,3 +1292,350 @@ server process and curling all three paths itself. Verdict returned, verbatim (a
 
 No PENDING HUMAN applies (no browser-interactive behavior, no hand-verified figure requirement —
 that belongs to T-12). Marker → `[x]`, `> attempts:` note removed.
+
+### T-12 · attempt 0 · implementer · AWAITING
+
+## Status: NEEDS_HUMAN_COMMAND
+
+I've done everything possible without a package install. Summary below, then the exact command needed.
+
+### What I found and did
+
+**1. Fixed a real bug in T-08's already-committed query** (`server/db/queries.ts`). While building the "timezone bucketing" test required by T-12, I found the week-bucketing expression was `occurred_at AT TIME ZONE 'UTC' AT TIME ZONE a.timezone` — a double conversion that is directionally wrong (it re-adds the offset instead of subtracting it). PLAN.md line 147 explicitly specifies the correct form as the single conversion `occurred_at AT TIME ZONE a.timezone`. I verified against the live seeded DB:
+
+```sql
+SELECT ae.id,
+  date_trunc('week', ae.occurred_at AT TIME ZONE a.timezone)                    AS plan_correct_week,
+  date_trunc('week', ae.occurred_at AT TIME ZONE 'UTC' AT TIME ZONE a.timezone) AS t08_query_week
+FROM activity_events ae JOIN accounts a ON a.id = ae.account_id WHERE ae.id = 1871;
+-- plan_correct_week: 2026-02-23   t08_query_week: 2026-03-02   (a full week off)
+```
+
+I corrected the one line in `server/db/queries.ts` to match PLAN.md's specified expression, and updated the doc comment above it with the evidence and a pointer to the test. This is a mechanical, spec-mandated fix (not a design decision), and leaving it in place would make T-12's mandatory timezone test permanently unable to pass. I'm flagging it loudly here rather than folding it in silently — happy to split it into a separate commit if you'd prefer.
+
+I confirmed `pnpm test` (existing domain unit tests) still passes after this change.
+
+**2. DISCOVERED_WORK — `insufficient_history` is currently unreachable through the live endpoint.** T-08's zero-fill query always returns a fixed 9 rows (judged + 8 prior weeks) per location via unconditional `generate_series`, regardless of how much real history a location has. That means `weeksOfHistory` is always exactly 8 for every request, so neither of `judgeWeek`'s `insufficient_history` branches (`< 4` weeks, or `mad === 0 && weeksOfHistory < 8`) can ever trigger — contradicting PLAN.md line 45 ("a new location with no history shows as 'not enough history'"). I confirmed this empirically by brute-force enumerating all (account, eventType, judged-week) combinations with ≥3 locations in the seeded DB (1,539 combinations) — zero ever produced `insufficient_history`. This means T-12's ranking-test requirement #3 (insufficient_history rows grouped at one end) cannot be honestly tested against the seeded DB as currently wired — any such assertion would be vacuous. I did not attempt to fix this myself: it requires a real design decision (how to determine a location's true history start) and a nontrivial query change, well beyond T-12's scope. I documented this in a comment in the test file and left the assertion out rather than fake it.
+
+**3. Wrote the full integration test file** — `server/routes/normalcy.test.ts` — covering, all backed by SQL I ran against the live seeded DB (queries are in comments above each assertion):
+- duplicate collapse (account 1 / Site C / call_received / week 2026-07-06: 3 raw rows → 2 counted)
+- timezone bucketing (account 1/Chicago event id 1871 lands in week 2026-02-23, not 2026-03-02; contrasted with a UTC account 18 boundary event where no shift is needed)
+- zero-fill (account 1 / Site B / appointment_set / week 2026-07-06: current 0, real verdict)
+- empty account (account 20, 0 events, 200 with `locations: []`)
+- hand-verified number (account 1 / Site C / call_received / week 2026-05-25: current 8)
+- ranking (account 1 / call_received / week 2026-04-06: pinned order `Site F, Site E, Site C, Site B, Site D, Site A`, independently verified via a `percentile_cont`-based SQL query in the test comment, non-increasing `|deltaPct|`, and sign-agreement with verdict)
+
+**4. Added `server/test-setup.ts`** and updated `vitest.config.mts` (`setupFiles`) so integration tests load `.env` the same way `server/index.ts` does — needed because the seeded Postgres is on host port 5433 (docker-compose mapping), not `pool.ts`'s default 5432.
+
+I still need to run the ranking test with the route's `.sort(...)` temporarily removed to demonstrate it's non-vacuous, per the task's explicit requirement — I have that step queued but it requires `pnpm test` to run first, which requires supertest.
+
+### NEEDS_HUMAN_COMMAND
+
+```
+pnpm add -D supertest @types/supertest --filter server
+```
+
+- **Working directory:** `C:\Repositories\Challenge`
+- **Why:** `server/routes/normalcy.test.ts` imports `supertest`, per TASKS.md's own dependency assignment ("supertest in T-12"). It is not present in `node_modules` or `pnpm-lock.yaml` yet.
+- **What I need back:** confirmation the install succeeded (or its output if it failed) so I can run `pnpm test`, confirm all six new tests pass, do the sort-removal non-vacuity demonstration, and report final green output.
+
+### Files touched so far
+- `C:\Repositories\Challenge\server\db\queries.ts` (T-08 timezone bug fix — out of T-12's nominal scope, flagged above)
+- `C:\Repositories\Challenge\server\routes\normalcy.test.ts` (new)
+- `C:\Repositories\Challenge\server\test-setup.ts` (new)
+- `C:\Repositories\Challenge\vitest.config.mts` (added `setupFiles`)
+
+### DISCOVERED_WORK (for the architect)
+The `insufficient_history` verdict is unreachable through the live `/api/accounts/:id/normalcy` endpoint for any input against the current seed, because T-08's query always zero-fills to a fixed 8-week prior window regardless of a location's actual history length — contradicting PLAN.md's stated requirement that young/new locations show "not enough history" rather than a false baseline. This needs a follow-up task to change how T-08 computes a location's available history (e.g., bounding by the location's first-ever event) before T-12's ranking-test requirement #3 can be genuinely tested.
+
+### T-12 · attempt 0 · human-command · AWAITING resolved
+
+Human ran `pnpm add -D supertest @types/supertest --filter server` and confirmed it succeeded
+(no output pasted; confirmation taken as fact per protocol). `> awaiting:` removed from T-12;
+resuming the implementer at attempt 0 to run the suite and the sort-removal non-vacuity check.
+
+### DISCOVERED_WORK (T-12) · human decision · architect dispatched
+
+Human approved the proposed resolution for the T-12 discovery (`insufficient_history` unreachable):
+bound the zero-fill window in T-08's query by each location's first-ever event (any event type),
+computed in SQL, superseding T-08's "exactly 9 weeks, no more, no less" clause — classified as a
+task defect in T-08 (AC over-specified vs PLAN.md's "not enough history" requirement; plan wins).
+task-architect dispatched to append the new task to TASKS.md with that framing and its own `deps:`.
+
+### T-19 · bootstrap-style pass · architect · REFINED
+
+Appended T-19 · P2 · "Bound zero-fill at each location's first event, so `insufficient_history` is
+reachable" under "Appended after the fact" (revealed by T-12). Encodes the human-decided resolution:
+task defect in T-08 (its "no more, no less" clause over-specified vs PLAN §2; plan wins); T-08's text
+left as written, T-19 supersedes the clause with `min(9, weeks since the location's first event)`
+rows per location; fix confined to `server/db/queries.ts` (CTE with MIN(occurred_at) per
+(account, location), week-truncated in the account's timezone; no TS date logic per PLAN §6; no
+domain/route changes); semantic decision recorded — cutoff is first event of ANY type, per-event-type
+alternative visibly rejected; deps: [T-08, T-09, T-11]; Done-when is SQL-evidenced, including a
+concrete (account, eventType, weekStart) demonstrating `insufficient_history` through the live
+endpoint, and existing suites staying green. Architect noted: T-12's omitted ranking sub-assertion #3
+becomes testable after T-19 and re-enabling it belongs to T-12's scope. Consistency check: no
+PLAN.md contradiction found.
+
+### T-12 · attempt 0 · implementer · COMPLETED (resumed after human command; validation pending)
+
+Final report, verbatim:
+
+All tests are green after restoring the sort exactly (`git diff server/routes/normalcy.ts` shows no
+content differences from HEAD — confirming the file is byte-identical to its committed state).
+
+1. Full test suite (final, green):
+   pnpm test → Test Files 2 passed (2) · Tests 11 passed (11) · Duration 1.04s
+   11 tests: 4 pre-existing domain unit tests (T-10, untouched) + 7 new integration tests (T-12).
+
+2. Non-vacuity demonstration (ranking test) — with the route's `.sort(...)` in
+   `server/routes/normalcy.ts` temporarily commented out:
+   FAIL server/routes/normalcy.test.ts > locations rank most-deviant-first by |deltaPct|
+   AssertionError: expected 'Site A' to be 'Site F' // Object.is equality
+     Expected: "Site F"  Received: "Site A"
+     at server/routes/normalcy.test.ts:200:35  expect(locations[0].location).toBe("Site F")
+   Test Files 1 failed (1) · Tests 1 failed | 6 passed (7)
+   Confirms the test fails meaningfully (unsorted response returns rows in arrival/alphabetical
+   order, 'Site A' first) rather than passing by accident. Sort restored verbatim — git diff shows
+   zero content differences from the committed version.
+
+3. Hand-verified figure:
+   -- account 1, Site C, call_received, week starting 2026-05-25 (America/Chicago), no duplicates:
+   SELECT count(*) AS raw_row_count,
+          count(DISTINCT (account_id, location, event_type, occurred_at)) AS deduped_event_count
+   FROM activity_events
+   WHERE account_id = 1 AND location = 'Site C' AND event_type = 'call_received'
+     AND date_trunc('week', occurred_at AT TIME ZONE 'America/Chicago') = '2026-05-25';
+   -- raw_row_count = 8, deduped_event_count = 8
+   Asserted as: GET /api/accounts/1/normalcy?eventType=call_received&weekStart=2026-05-25 →
+   locations entry for Site C has current === 8. Test passes.
+
+Scope discipline note: the insufficient_history/zero-fill-window gap was not touched — the ranking
+test carries its explanatory comment and no assertion for ranking sub-requirement #3, deferred to
+T-19 by recorded human decision; re-enabling it belongs to T-12's scope once T-19 lands.
+
+Files changed:
+- server/db/queries.ts — T-08 timezone-bucketing bug fix (flagged in the prior AWAITING entry)
+- server/routes/normalcy.test.ts — new, 7 integration tests
+- server/test-setup.ts — new, loads .env for the pool
+- vitest.config.mts — added setupFiles
+- server/routes/normalcy.ts — no net change (sort removed and restored for the demonstration only)
+
+Orchestrator note: validator NOT yet dispatched. T-12's task text requires ranking sub-assertion #3
+(insufficient_history rows grouped at a pinned end), which is unreachable until T-19 lands — a
+sequencing situation not covered by the loop's numbered steps (T-12 is [~]; one-task-at-a-time
+blocks starting T-19). Stopping to ask the human how to sequence, per the skill's fallback rule.
+
+### sequencing · human decision · T-19 interleaved ahead of T-12's validation
+
+Human authorized option 1: T-12 stays [~] paused (implementation complete, validation deferred);
+T-19 runs now as a one-off exception to one-task-at-a-time, because T-12's ranking sub-assertion #3
+is unreachable until T-19 lands. After T-19 reaches [x], the implementer re-enters T-12 solely to
+add sub-assertion #3, then T-12 gets its full validation. T-19 marked [~], attempts 0; implementer
+dispatched.
+
+### T-19 · attempt 1 · implementer · COMPLETED (validation pending)
+
+Verbatim report:
+
+Only `server/db/queries.ts` was modified (the rest are pre-existing uncommitted state from
+T-12/harness bookkeeping); the temp verification file is gone.
+
+Change: added a `location_first_week` CTE (MIN of `date_trunc('week', occurred_at AT TIME ZONE
+a.timezone)` across all event types for the account, per location) and a
+`WHERE ws.week_start >= lfw.first_week` filter on the final zero-fill SELECT. Comments updated to
+document the first-event bound and the deliberate any-event-type semantic decision. No changes to
+`server/domain/baseline.ts` or the route.
+
+Done-when evidence:
+1. 9 rows for a long-lived location — account 1 / Site C / call_received / judged week 2026-07-06.
+   Site C's first event (any type) is 2026-02-02, 22 weeks before the judged week. Confirmed live:
+   GET /api/accounts/1/normalcy?eventType=call_received&weekStart=2026-07-06 returns Site C with
+   weeksOfHistory: 8 (9 total rows: judged + 8 prior).
+2. Fewer rows for a young location — account 9 / Site C / call_received / judged week 2026-02-16.
+   Site C's first event week is 2026-02-02 (3 weeks before). Direct SQL run of the new query
+   returns exactly 3 rows for Site C (2026-02-16, 2026-02-09, 2026-02-02), not 9.
+3. insufficient_history reachable live — account 9 / call_received / weekStart 2026-02-02 (Site C's
+   own first-event week, independently verified via SELECT ae.location,
+   MIN(date_trunc('week', ae.occurred_at AT TIME ZONE a.timezone)) ... WHERE account_id=9
+   GROUP BY location → Site C = 2026-02-02). Live response for Site C: current: 8,
+   weeksOfHistory: 0, verdict: "insufficient_history", baselineMedian: null, typicalRange: null.
+   Verified with a temporary vitest file (server/routes/t19-verify.temp.test.ts) hitting the real
+   Express app via supertest — run, output captured, then deleted; not part of the repo.
+4. Full suite green — pnpm test: Test Files 2 passed (2), Tests 11 passed (11), including all of
+   T-12's pinned integration assertions (duplicate collapse, both timezone tests, zero-fill Site B
+   test, the hand-verified 8-events number, and the full ranking test with the pinned
+   "Site F, Site E, Site C, Site B, Site D, Site A" order) unchanged.
+
+Note per T-19's own text: T-12's omitted ranking sub-assertion is now testable but re-enabling it
+is explicitly out of this task's scope — normalcy.test.ts untouched.
+
+### T-19 · attempt 1 · validator · PASS
+
+Verbatim verdict:
+
+verdict: PASS
+
+Scope discipline:
+- git status confirms the only implementation file touched is server/db/queries.ts.
+  server/domain/baseline.ts and server/routes/normalcy.ts have zero diff — matches "No changes to
+  baseline.ts or the route."
+- No leftover temp test files (checked *t19*, *temp*); only pre-existing baseline.test.ts and
+  normalcy.test.ts (T-12 baseline, untouched).
+- TASKS.md, ai-log/03-execution.md, pnpm-lock.yaml, server/package.json, vitest.config.mts diffs
+  are the pre-accepted T-12 baseline state, not new T-19 scope creep.
+
+SQL-only, parameterized:
+- location_first_week CTE computes the bound entirely in SQL
+  (MIN(date_trunc('week', ae.occurred_at AT TIME ZONE a.timezone))), same single-conversion
+  timezone expression as the bucketing CTE — no date arithmetic introduced in TypeScript.
+- Query still uses only $1/$2/$3 placeholders; no string interpolation added.
+
+Comments (reviewable artifact, PLAN §6):
+- File header section 4 documents the first-event bound rationale, the supersession of T-08's
+  row-count clause, and explicitly documents-and-rejects the per-event-type cutoff alternative.
+
+Criterion (1) — 8+ weeks of prior history → exactly 9 rows: independently confirmed via
+docker compose exec psql: account 1 locations Site A/F first_week = 2026-01-26; Site B/C/D/E
+first_week = 2026-02-02. Live endpoint (temporary supertest script, deleted after use) with
+weekStart=2026-04-13 returned weeksOfHistory: 8 (9 rows) for all six locations.
+
+Criterion (2) — fewer than 4 prior weeks → fewer rows: weekStart=2026-02-16 → Site A/F
+weeksOfHistory: 3; Site B/C/D/E weeksOfHistory: 2 — arithmetically matching the independently
+queried first_week values, not the implementer's claim.
+
+Criterion (3) — insufficient_history reachable live: (account=1, eventType=call_received,
+weekStart=2026-02-02) → verdict "insufficient_history" for all six locations (weeksOfHistory 0 for
+Site B/C/D/E whose first_week equals the judged week; 1 for Site A/F), cross-checked against
+independent SQL on the seeded DB.
+
+Criterion (4) — ran pnpm test: Test Files 2 passed (2), Tests 11 passed (11) — baseline.test.ts
+(T-10) and normalcy.test.ts (T-12's suite) both green.
+
+No pending-human item applies to this task.
+
+Orchestrator: T-19 marked [x], attempts note removed. Interleave plan resumes: implementer will
+re-enter T-12 to add ranking sub-assertion #3, then T-12 gets its full validation.
+
+### T-12 · attempt 0 · human decision · resume for ranking sub-assertion #3
+
+Human chose to commit T-19 and T-12 together once T-12 passes validation (no split of the
+queries.ts hunks). T-19 is [x]; resuming the T-12 implementer at the same attempt to add the one
+remaining piece — ranking sub-assertion #3 (insufficient_history rows grouped at a pinned end),
+now testable — then full validation.
+
+### T-12 · attempt 0 · implementer · COMPLETED (full scope; validation pending)
+
+Verbatim report:
+
+Full test suite (final): pnpm test → Test Files 2 passed (2) · Tests 12 passed (12) · 2.50s.
+12/12 green: the 11 tests confirmed by T-19's validator, unchanged, plus the new ranking
+sub-assertion.
+
+Choosing SQL for the new sub-assertion — chose account 1 / call_received / judged week 2026-02-23
+for the property (a genuine mix of ranked and insufficient_history rows), not by number:
+
+WITH location_first_week AS (
+  SELECT ae.location, MIN(date_trunc('week', ae.occurred_at AT TIME ZONE a.timezone)) AS first_week
+  FROM activity_events ae JOIN accounts a ON ae.account_id = a.id
+  WHERE ae.account_id = 1 GROUP BY ae.location
+),
+prior_weeks AS (
+  SELECT generate_series(TIMESTAMPTZ '2026-02-23' - interval '1 week',
+    TIMESTAMPTZ '2026-02-23' - interval '8 weeks', '-1 week'::interval) AS week_start
+)
+SELECT lfw.location, lfw.first_week,
+  count(*) FILTER (WHERE pw.week_start >= lfw.first_week) AS weeks_of_history
+FROM location_first_week lfw CROSS JOIN prior_weeks pw
+GROUP BY lfw.location, lfw.first_week ORDER BY lfw.location;
+
+Result: Site A / Site F → weeks_of_history = 4 (≥ MIN_WEEKS_OF_HISTORY, get a band);
+Site B/C/D/E → weeks_of_history = 3 (insufficient_history). A second, independent
+percentile_cont-based query confirmed Site F (deltaPct 14.29%) ranks above Site A (-11.11%) among
+the ranked pair.
+
+The assertion pins the full response order to ["Site F", "Site A", "Site B", "Site C", "Site D",
+"Site E"] — ranked rows first (most-deviant-first), insufficient_history rows grouped at the END,
+alphabetical among themselves — matching what the route's sort (server/routes/normalcy.ts)
+actually does, read directly from its comparator rather than assumed.
+
+Other changes:
+- Replaced the stale "unreachable, DISCOVERED_WORK" comment in server/routes/normalcy.test.ts with
+  the new test.
+- No changes to server/db/queries.ts or server/routes/normalcy.ts.
+- Deleted the scratch exploration script (server/explore2.mjs); git status shows no stray files.
+
+### T-12 · attempt 0 · validator · PASS
+
+Verbatim verdict:
+
+verdict: PASS
+
+Evidence checked:
+- pnpm test → 2 test files, 12 tests, all green (baseline.test.ts unchanged + normalcy.test.ts new).
+- git diff -- server/routes/normalcy.ts is empty — route carries no net change, consistent with the
+  T-19-then-T-12 sequencing recorded in the log.
+- Duplicate collapse: re-ran the exact SQL comment (raw_row_count=3, deduped_event_count=2 for
+  account 1 / Site C / call_received / week 2026-07-06) against the live seeded DB — matches.
+- Timezone bucketing: re-ran both id-1871 (America/Chicago, local week 2026-02-23) and id-10602
+  (account 18, timezone='UTC', week 2026-06-22) SQL — both match the comments and the assertions;
+  the non-UTC/UTC contrast is genuinely covered in two separate tests.
+- Zero-fill: re-ran the Site B / appointment_set / week 2026-07-06 count-0 query — matches; test
+  asserts current: 0, verdict !== 'insufficient_history', typicalRange !== null.
+- Empty account: activity_events for account 20 is genuinely empty; test asserts status 200 and
+  locations: [] explicitly.
+- Ranking test: re-ran the independent percentile_cont SQL for account 1 / call_received / week
+  2026-04-06 — six-location order (Site F, E, C, B, D, A) matches exactly, including the property
+  claim (differs from both alphabetical and unsorted/arrival order, the latter being alphabetical
+  per T-08's ORDER BY location). Deviation measure (abs(deltaPct), falling back to raw count when
+  baseline is 0) is named in a route comment (server/routes/normalcy.ts:114-121) and the test
+  asserts against it. deltaPct sign-agreement asserted inline in the same walk.
+- insufficient_history grouping (ranking sub-requirement #3, unlocked by T-19): re-ran the
+  location_first_week/weeks_of_history SQL and the two-location bounded-median SQL — matches
+  Site F: 4/3.5/+14.29%, Site A: 4/4.5/-11.11% exactly. Response order
+  [Site F, Site A, Site B, Site C, Site D, Site E] with unranked rows carrying
+  baselineMedian/typicalRange/deltaPct === null confirmed against the live DB and matches the
+  route's sort comparator (ranked-first, insufficient_history grouped alphabetically at the end).
+- Non-vacuity demonstration: ai-log/03-execution.md records the sort temporarily removed, the
+  ranking test failing meaningfully (expected 'Site F', received 'Site A'), then the sort restored
+  with git diff showing zero content difference.
+- Test rule compliance: DB never mocked; test names state falsifiable beliefs; no coverage farming;
+  failures loud, no skip logic.
+- Scope discipline: only normalcy.test.ts (new), test-setup.ts (new), vitest.config.mts
+  (setupFiles) are T-12's own changes; package.json/lockfile add exactly-pinned
+  supertest/@types/supertest (human-approved install); queries.ts is the pre-accepted T-19 state;
+  no stray files; ai-log changes are orchestrator-owned.
+
+PENDING HUMAN: the hand-verified figure — "account 1 / Site C / call_received / week starting
+2026-05-25 has exactly 8 events" (server/routes/normalcy.test.ts:125-141), backed by:
+
+SELECT count(*) AS raw_row_count,
+       count(DISTINCT (account_id, location, event_type, occurred_at)) AS deduped_event_count
+FROM activity_events
+WHERE account_id = 1 AND location = 'Site C' AND event_type = 'call_received'
+  AND date_trunc('week', occurred_at AT TIME ZONE 'America/Chicago') = '2026-05-25';
+--  raw_row_count = 8, deduped_event_count = 8
+
+Per T-12's split-verification clause this figure is reserved for human confirmation — verify 8 by
+hand against the seed before committing.
+
+Orchestrator: T-12 marked [x], attempts note removed.
+
+### T-12 · PENDING HUMAN · resolved — hand-verified figure confirmed by the human
+
+Human ran, in-session:
+
+docker compose exec postgres psql -U dash247 -d dash247 -c "SELECT count(*) AS raw_row_count,
+  count(DISTINCT (account_id, location, event_type, occurred_at)) AS deduped_event_count FROM
+  activity_events WHERE account_id = 1 AND location = 'Site C' AND event_type = 'call_received' AND
+  date_trunc('week', occurred_at AT TIME ZONE 'America/Chicago') = '2026-05-25';"
+
+Output:
+ raw_row_count | deduped_event_count
+---------------+---------------------
+             8 |                   8
+(1 row)
+
+Matches the figure pinned in server/routes/normalcy.test.ts (current === 8) and confirms the week
+carries no duplicates. The split-verification clause of T-12 is satisfied; nothing blocks the
+combined T-19 + T-12 commit.
