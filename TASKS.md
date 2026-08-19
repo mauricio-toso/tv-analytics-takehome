@@ -151,7 +151,7 @@ the file (both numbers established here, not assumed from PLAN §3).
 
 ## Phase 1 — Data reality, verified before any aggregation (PLAN §3)
 
-### [ ] T-06 · P2 · Verification query set
+### [x] T-06 · P2 · Verification query set
 
 deps: [T-05]
 

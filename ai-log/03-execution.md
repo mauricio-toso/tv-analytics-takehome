@@ -805,3 +805,91 @@ itemized evidence it collected itself:
    — ai-log/03-execution.md untouched by the implementer.
 
 No FAIL criteria. Marker → `[x]`, `> attempts:` note removed.
+
+---
+
+### T-06 · attempt 0 · implementer · re-implemented
+
+Dispatched implementer (sonnet) on T-06 (verification query set). Created `docs/verification.sql`
+with five queries matching PLAN §3's five numbered claims, ran each live against the seeded
+database, and recorded actual output as comment blocks in the file itself (chosen over README —
+that's T-17's scope — or ai-log/03-execution.md — implementer has no write access to that file;
+only the orchestrator does).
+
+Results:
+1. total_events=12626, distinct_accounts=19, range 2026-02-01→2026-07-27 — **discrepancy**:
+   PLAN §3 says "20 accounts"; only 19 have events (account 20 exists with zero). Recorded and
+   explained in verification.sql; PLAN.md left untouched.
+2. duplicate natural keys = 12 — matches PLAN §3.
+3. NULL rates: outcome=3.15% (matches "~3%"), duration_seconds=**40.86%** — **major discrepancy**:
+   PLAN §3 claims "~4%", actual is 10x that. Recorded and flagged in verification.sql; PLAN.md left
+   untouched.
+4. account 20 ("Quiet Harbor Spa") only account with zero events — matches PLAN §3.
+5. account-6 burst: 2026-06-03, 805 events — matches PLAN §3's "~800".
+
+### T-06 · attempt 0 · validator · FAIL
+
+Dispatched validator (sonnet), fresh context, independently re-ran all five queries live and
+cross-checked every number, PLAN.md/seed.sql/ai-log/TASKS.md integrity. Verdict returned, verbatim
+(abridged):
+
+> Verdict: FAIL
+> criterion: "Done when: every query's output is recorded (README appendix or AI log)"
+> expected: all five outputs recorded in a committed file
+> actual: outputs correctly recorded in docs/verification.sql with correct discrepancy analysis,
+> BUT the file is untracked/uncommitted (`git status docs/verification.sql` → untracked)
+>
+> Everything else independently re-verified and correct: all 5 query outputs match live re-runs
+> exactly; account 20 confirmed as the *only* zero-event account (not just "an" account); both
+> discrepancies (accounts, duration_seconds NULL rate) correctly flagged in-file with PLAN.md left
+> untouched; seed/seed.sql, ai-log/03-execution.md untouched; TASKS.md only orchestrator-owned
+> lines changed.
+
+Orchestrator note, before accepting the verdict at face value: this FAIL criterion — file must be
+committed/staged — is not stated anywhere in T-06's actual "Done when" text, and is inconsistent
+with every prior PASS in this log. T-01, T-02(implicitly via rename check), T-03, and T-05 were all
+validated and marked `[x]` while their new files sat untracked, with the validators for T-01/T-03
+explicitly noting that as *expected*, "agents never commit" (see T-01 attempt-0-redo validator PASS
+item 5, T-03 doesn't apply, T-05 PASS item — files untracked and PASSed regardless). This validator
+dispatch did not carry that established context because fresh-context validators cannot see this
+log. This is an orchestrator dispatch gap, not a domain judgment call to override: the fix is
+narrowly re-dispatching the implementer to run `git add docs/verification.sql` (staging, not
+`git commit` — staging is not denied to agents, only committing is) and then re-validating fully
+with the missing context supplied. This does not discard or overrule the validator's verdict — the
+verdict stands as delivered and is logged FAIL above unedited; it changes what the *next* attempt
+and *next* validator dispatch look like.
+
+`> attempts:` incremented 0 → 1. Retrying with the same implementer, scoped to staging the file
+(`git add`, not `git commit`) — no other content changes needed, since every other criterion
+already independently passed.
+
+### T-06 · attempt 1 · implementer · re-implemented (targeted fix)
+
+Dispatched implementer (sonnet), scoped to exactly the one FAIL: `git add docs/verification.sql`.
+No content changes. Reported staged (`new file: docs/verification.sql` under "Changes to be
+committed"); confirmed no other files touched.
+
+### T-06 · attempt 1 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, full revalidation (not just the fixed criterion) plus
+explicit process context that staged-but-uncommitted is the expected/normal state pre-commit in
+this harness (established by every prior task's PASS). Verdict returned, verbatim (abridged; full
+evidence retained in agent history ae94193):
+
+> verdict: PASS
+> 1. `docs/verification.sql` exists, staged (`git status` → "Changes to be committed: new file"),
+>    contains all five queries.
+> 2. All five queries independently re-run live, outputs match recorded comments exactly:
+>    12626 events / 19 distinct accounts / 2026-02-01→2026-07-27; 12 duplicate natural keys;
+>    duration_seconds NULL 40.86% (5159/12626), outcome NULL 3.15% (398/12626); account 20 only
+>    zero-event account (independently confirmed via full 20-row account/event-count listing);
+>    account-6 burst 2026-06-03, 805 events.
+> 3. Two discrepancies vs PLAN §3 correctly flagged in-file, PLAN.md left as-written (`git diff
+>    PLAN.md` empty): distinct-accounts 19 vs "20" (explained: account 20 has zero events),
+>    duration_seconds NULL 40.86% vs claimed "~4%" (flagged as major discrepancy).
+> 4. `git diff seed/seed.sql` empty. TASKS.md diff shows only marker `[ ]`→`[~]` and orchestrator's
+>    `> attempts: 1` line — task text/deps untouched. ai-log/03-execution.md changes are all
+>    orchestrator entries, no implementer edits.
+
+All criteria PASS with itemized, independently-collected evidence (live queries, git diffs, full
+account listing — not implementer self-report). Marker → `[x]`, `> attempts:` note removed.
