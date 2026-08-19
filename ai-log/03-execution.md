@@ -469,3 +469,76 @@ everything independently (no trust in implementer claims). Verdict returned, ver
 >    modification.
 
 All six criteria PASS with itemized evidence. Marker `[x]`, `> attempts:` note removed.
+
+### T-03 · attempt 0 · implementer · NEEDS_HUMAN_COMMAND
+
+Dispatched implementer (sonnet) on T-03 (docker-compose Postgres service + `.env.example`). It
+created:
+
+- `docker-compose.yml` — single `postgres` service, pinned image `postgres:16.4` (justified: current
+  stable major, robust timezone support for the `date_trunc(... AT TIME ZONE ...)` queries PLAN §6
+  names), named volume `dash247-pgdata`, healthcheck via `pg_isready` (5s interval, 3s timeout, 5
+  retries, 10s start_period), env vars with `${VAR:-default}` fallbacks, port `5432:5432`.
+- `.env.example` — `POSTGRES_HOST/PORT/DB/USER/PASSWORD` placeholders + a commented connection-string
+  format. Placeholder values only, no real secrets.
+- `README.md` (new) — Quick Start / Database Setup section showing `docker compose up -d` as the
+  single command, per Done when's "the whole step is one command in the README draft."
+
+It then stopped with `NEEDS_HUMAN_COMMAND`, correctly declining to run `docker compose up -d` itself
+(human-run per harness boundary rules), requesting:
+
+```bash
+docker compose up -d
+docker compose exec postgres pg_isready -U dash247 -d dash247
+```
+
+reasoning that `docker compose exec` (inspection of an already-running container) is agent-run-
+allowed but `up`/`down` is not. Working directory: repo root. Needs both commands' output pasted
+back to demonstrate the Done when criterion.
+
+Task left `[~]`, `> attempts: 0` unchanged, `> awaiting:` added.
+
+### T-03 · attempt 0 · human-command · AWAITING resolved
+
+Human ran `docker compose up -d` directly (not pasted back verbatim, but the loop was re-invoked
+without output). Orchestrator verified independently via agent-run-allowed read-only inspection
+rather than blocking on a paste:
+
+```
+$ docker compose ps
+NAME               IMAGE           COMMAND                  SERVICE    CREATED              STATUS                        PORTS
+dash247-postgres   postgres:16.4   "docker-entrypoint.s…"   postgres   About a minute ago   Up About a minute (healthy)   0.0.0.0:5432->5432/tcp, [::]:5432->5432/tcp
+
+$ docker compose exec postgres pg_isready -U dash247 -d dash247
+/var/run/postgresql:5432 - accepting connections
+```
+
+Container up, healthy, `pg_isready` accepting connections. `> awaiting:` line removed; `> attempts:`
+stays at 0 (waiting on the human is not a failed attempt). Resuming the implementer at the same
+attempt with this output taken as fact.
+
+### T-03 · attempt 0 · validator · PASS
+
+Dispatched validator (sonnet), fresh context, task text + Done when verbatim, instructed to verify
+everything independently (no trust in implementer claims) and only use read-only docker inspection
+(not `up`/`down`). Verdict returned, verbatim (abridged):
+
+> Verdict: PASS
+> 1. `docker-compose.yml` — single `postgres` service, pinned `postgres:16.4` (not `latest`), named
+>    volume `dash247-pgdata` (top-level `volumes:` key + service mount, not anonymous/bind), a
+>    `healthcheck:` block using `pg_isready -U ... -d ...` (5s interval, 3s timeout, 5 retries, 10s
+>    start_period).
+> 2. `.env.example` — `POSTGRES_HOST/PORT/DB/USER/PASSWORD`, dev-oriented placeholder values only
+>    (`dash247` / `dash247_dev`), no production secrets.
+> 3. `README.md` — `docker compose up -d` shown as the single command for database setup.
+> 4. Runtime, independently re-run: `docker compose ps` → `Up ... (healthy)`; `docker compose exec
+>    postgres pg_isready -U dash247 -d dash247` → "accepting connections"; `docker inspect
+>    dash247-postgres --format='{{json .State.Health}}'` → `"Status":"healthy"`; `docker volume ls |
+>    grep dash247` → `local challenge_dash247-pgdata` confirms the named volume exists.
+> 5. Scope: Postgres only, no scope creep, matches PLAN §6 layout ("docker-compose.yml # Postgres
+>    only").
+> 6. CLAUDE.md hard rules: `git log -- seed/seed.sql` shows last touch was T-02's move commit, T-03
+>    didn't touch it; no SQL in this task; no package.json/dependency changes.
+
+All six criteria PASS with itemized evidence (commands + actual output, not paraphrased). Marker
+`[x]`, `> attempts:` note removed.

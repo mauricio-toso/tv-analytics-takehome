@@ -113,7 +113,7 @@ The starter repo landed under `code/`. The plan's layout says `seed/seed.sql` an
 **Done when:** `sha256sum` of the moved seed file equals that of the original, recorded in the
 commit body; the `Edit(./seed/**)` deny rule in `.claude/settings.json` now guards the real file.
 
-### [ ] T-03 · P1 · Postgres via docker-compose + `.env.example`
+### [x] T-03 · P1 · Postgres via docker-compose + `.env.example`
 
 deps: []
 

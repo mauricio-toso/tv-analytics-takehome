@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16.4
+    container_name: dash247-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-dash247}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dash247_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-dash247}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - dash247-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dash247} -d ${POSTGRES_DB:-dash247}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  dash247-pgdata:
