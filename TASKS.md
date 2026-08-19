@@ -314,7 +314,7 @@ machine. It returns `PENDING HUMAN:` for it; do that check before committing.
 
 ## Phase 5 — UI (PLAN §9: 1:00, second half)
 
-### [ ] T-13 · P3 · Vite + React shell with `/api` dev proxy
+### [x] T-13 · P3 · Vite + React shell with `/api` dev proxy
 
 deps: [T-01, T-11]
 

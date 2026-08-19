@@ -12,4 +12,6 @@ strictPeerDependencies: true
 minimumReleaseAge: 1440
 
 # Addresses: malicious install scripts - blocks lifecycle hooks by default, only allowlisted packages may execute
-allowBuilds: {}
+# esbuild (Vite's transitive dep, T-13) needs its postinstall to fetch its platform binary.
+allowBuilds:
+  esbuild: true

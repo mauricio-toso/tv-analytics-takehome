@@ -1639,3 +1639,75 @@ Output:
 Matches the figure pinned in server/routes/normalcy.test.ts (current === 8) and confirms the week
 carries no duplicates. The split-verification clause of T-12 is satisfied; nothing blocks the
 combined T-19 + T-12 commit.
+
+### T-13 · attempt 0 · implementer · AWAITING
+Implementer completed all T-13 source files but stopped with NEEDS_HUMAN_COMMAND — installing
+dependencies is human-run.
+
+Requested command (cwd C:\Repositories\Challenge):
+`pnpm install --frozen-lockfile`, and if that fails because the lockfile is out of date (expected —
+web/package.json and root package.json gained new deps): `pnpm install` followed by
+`pnpm approve-builds` (esbuild allowlisted in pnpm-workspace.yaml; Vite's transitive dep needs its
+postinstall for the platform binary).
+
+Why: T-13 adds `react`, `react-dom` (web deps) and `@types/react`, `@types/react-dom`,
+`@vitejs/plugin-react`, `typescript`, `vite` (web devDeps), plus `concurrently` (root devDep).
+Versions pinned exact via read-only `pnpm view`: react/react-dom 19.2.8, vite 8.2.1,
+@vitejs/plugin-react 6.0.5, typescript 7.0.2, @types/react 19.2.18, @types/react-dom 19.2.4,
+concurrently 10.0.5. Note: `minimumReleaseAge: 1440` may refuse any of these if published <24h ago;
+if so the implementer will re-pin to the next-older exact version.
+
+What it needs back: install output (success/failure); optionally `pnpm dev` output for ~5–10s
+(both processes up, ports 3000 and 5173) and a fetch of
+`http://localhost:5173/api/accounts/1/normalcy?eventType=call_received&weekStart=2026-05-25`.
+
+Files created/changed by this attempt:
+- web/package.json, web/vite.config.ts (proxy /api → http://localhost:3000 — the only CORS-avoiding
+  mechanism), web/tsconfig.json, web/index.html, web/src/main.tsx, web/src/App.tsx (fetches the
+  T-11-verified query, renders raw JSON in <pre>), web/src/styles.css — all new
+- package.json (root): `dev` script via concurrently (server + web), concurrently devDep
+- server/package.json: `dev` script = `node index.ts` (Node 22.23 native TS type-stripping,
+  confirmed by direct run: "DASH-247 API listening on http://localhost:3000")
+- pnpm-workspace.yaml: `esbuild: true` added to allowBuilds, with comment
+
+### T-13 · attempt 0 · human-command · OUTPUT
+Human ran the requested install. Pasted output, verbatim:
+
+```
+devDependencies:
++ concurrently 10.0.5
+
+Done in 11.7s using pnpm v11.22.0
+ pnpm approve-builds
+There are no packages awaiting approval
+```
+
+Install succeeded (pnpm v11.22.0). approve-builds had nothing pending — consistent with esbuild
+already being allowlisted via `allowBuilds` in pnpm-workspace.yaml before install ran. Resuming the
+implementer at the same attempt with this output.
+
+### T-13 · attempt 0 · validator · PASS
+Fresh-context validation, all criteria revalidated:
+
+1. `pnpm dev` starts both processes — confirmed. Root script (`package.json:8`):
+   `concurrently -n server,web -c blue,green "pnpm --filter server dev" "pnpm --filter web dev"`.
+   Log: `[server] DASH-247 API listening on http://localhost:3000` and
+   `[web] ➜ Local: http://localhost:5173/`. Processes stopped afterward; `dash247-postgres`
+   Up (healthy) before and after.
+2. Proxy works same-origin — `node -e fetch()` against `http://localhost:5173/api/accounts/1/
+   normalcy?eventType=call_received&weekStart=2026-05-25` returned 200 with well-formed JSON
+   (`{"accountId":1,"timezone":"America/Chicago","eventType":"call_received",
+   "weekStart":"2026-05-25","locations":[...]}`); no Access-Control-Allow-Origin header present
+   (same-origin, none needed).
+3. No CORS configuration anywhere — `server/package.json` deps are express, pg, @types/pg only;
+   grep for `Access-Control|cors` in server/ found no matches; `web/vite.config.ts:6-13` is a plain
+   `{"/api": "http://localhost:3000"}` proxy with no CORS options.
+4. Negative constraints — web runtime deps exactly react@19.2.8, react-dom@19.2.8; devDeps are
+   vite/typescript/@vitejs/plugin-react/@types tooling only (PLAN §6 consistent); App.tsx/main.tsx
+   import only react, react-dom/client, ./App.tsx, ./styles.css; exactly one stylesheet
+   (web/src/styles.css).
+5. The shell actually exercises the proxy from code — `web/src/App.tsx:5-6` defines the endpoint,
+   `App.tsx:23-39` fetches it in a useEffect and renders the JSON in a <pre>, error alert on
+   failure; matches the live 200 observed in criterion 2.
+
+No PENDING HUMAN lines for this task. T-13 → [x].
