@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useUrlState } from "./useUrlState.ts";
 
-// T-13 shell only: proves the Vite dev proxy reaches the Express API with no CORS config.
-// Fixed query params here are a placeholder — T-14 replaces them with URL-owned control state.
-const ENDPOINT =
-  "/api/accounts/1/normalcy?eventType=call_received&weekStart=2026-05-25";
+// T-14: the three controls (account, event type, judged week) are read from and written to
+// the URL only — see useUrlState.ts. No React state duplicates them.
+const ACCOUNT_IDS = Array.from({ length: 20 }, (_, i) => String(i + 1));
+
+const EVENT_TYPES = ["call_received", "lead_created", "appointment_set"];
 
 type NormalcyResponse = {
   accountId: number;
@@ -14,13 +16,18 @@ type NormalcyResponse = {
 };
 
 export function App() {
+  const [{ account, eventType, weekStart }, setUrlState] = useUrlState();
   const [data, setData] = useState<NormalcyResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setData(null);
+    setError(null);
 
-    fetch(ENDPOINT)
+    const endpoint = `/api/accounts/${encodeURIComponent(account)}/normalcy?eventType=${encodeURIComponent(eventType)}&weekStart=${encodeURIComponent(weekStart)}`;
+
+    fetch(endpoint)
       .then((res) => {
         if (!res.ok) {
           throw new Error(`${res.status} ${res.statusText}`);
@@ -41,11 +48,50 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [account, eventType, weekStart]);
 
   return (
     <main>
       <h1>DASH-247</h1>
+      <form aria-label="controls" onSubmit={(e) => e.preventDefault()}>
+        <label>
+          Account
+          <select
+            value={account}
+            onChange={(e) => setUrlState({ account: e.target.value })}
+          >
+            {ACCOUNT_IDS.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Event type
+          <select
+            value={eventType}
+            onChange={(e) => setUrlState({ eventType: e.target.value })}
+          >
+            {EVENT_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Week starting
+          <input
+            type="date"
+            value={weekStart}
+            onChange={(e) => setUrlState({ weekStart: e.target.value })}
+          />
+        </label>
+      </form>
+
       {error && <p role="alert">Failed to load: {error}</p>}
       {!error && !data && <p>Loading…</p>}
       {data && <pre>{JSON.stringify(data, null, 2)}</pre>}

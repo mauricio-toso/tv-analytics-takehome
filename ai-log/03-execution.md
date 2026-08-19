@@ -1711,3 +1711,47 @@ Fresh-context validation, all criteria revalidated:
    failure; matches the live 200 observed in criterion 2.
 
 No PENDING HUMAN lines for this task. T-13 → [x].
+
+### T-14 · attempt 1 · implementer · DISCOVERED_WORK (task completed as scoped)
+
+Implemented `web/src/useUrlState.ts` (new) — no React state; reads parse `location.search` fresh
+via `useSyncExternalStore`, writes build `new URLSearchParams(window.location.search)`, call
+`history.replaceState`, then dispatch a synthetic `popstate` so subscribers re-render. Defaults
+(account=1, eventType=call_received, weekStart=2026-05-25) applied only at read time, never
+persisted. `web/src/App.tsx` rewired: three native controls (account <select> 1–20, event-type
+<select>, week <input type="date">), fetch derives its URL from the hook's values; raw JSON <pre>
+left for T-15.
+
+DISCOVERED_WORK (verbatim from implementer): the web build was broken before this task —
+confirmed by stashing the T-14 changes and running `pnpm run build` against committed T-13 code:
+`tsc -b` failed with TS5097 (extension imports need `allowImportingTsExtensions`) and TS2882 (no
+Vite client types for `.css` side-effect imports). Fixed minimally as blocking infra:
+`web/tsconfig.json` + `allowImportingTsExtensions: true`; new `web/src/vite-env.d.ts` with the
+standard `/// <reference types="vite/client" />`; `.gitignore` + `*.tsbuildinfo`. Implementer's
+note: "T-13's 'Done when' claimed a working build but the config to make `tsc -b` actually pass
+was never added, so no task in TASKS.md currently owns web build-tooling correctness." New tasks
+are the architect's to write; surfaced to the human in the orchestrator report.
+
+Build evidence: `cd web && pnpm run build` → `tsc -b && vite build` clean.
+
+### T-14 · attempt 1 · validator · PASS
+
+Evidence (verbatim):
+1. `web/src/useUrlState.ts` implements `useUrlState` over native `URLSearchParams` +
+   `window.history.replaceState` (lines 42, 54-61), reading from `window.location.search`
+   (lines 37-38, 51) via `useSyncExternalStore` — no internal React state holding the control values.
+2. `web/src/App.tsx:19` destructures `account`, `eventType`, `weekStart` directly from
+   `useUrlState()`; the only local `useState` in the file (lines 20-21) holds fetch-response
+   `data`/`error`, not control values — no duplicate state for the three controls.
+3. Reads come from `location.search` (`useUrlState.ts:37-38,41-48`); writes go through
+   `URLSearchParams` + `history.replaceState` (`useUrlState.ts:54-61`).
+4. Three controls exist and are wired to `setUrlState`: account select (`App.tsx:59-68`), event
+   type select (`App.tsx:73-82`), week-starting date input (`App.tsx:87-91`).
+5. `pnpm run build` inside `web/` succeeds (`tsc -b && vite build`: 17 modules transformed, dist
+   produced, no errors).
+6. `web/package.json` shows no new dependencies (react, react-dom, existing Vite/TS toolchain
+   only) — no router or state library introduced.
+
+PENDING HUMAN: reloading the page restores all three controls (account, event type, judged week); pasting the URL into a new tab reproduces the same view. Verified statically only (URL is the sole owner of control state via `useUrlState`, no duplicated React state for the controls, reads/writes go through `location.search`/`history.replaceState`) — not exercised in a browser.
+
+T-14 → [x].

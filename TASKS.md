@@ -323,7 +323,7 @@ No router, no state library, no CSS framework. One `styles.css`.
 **Done when:** `pnpm dev` starts both processes and the page fetches the endpoint through the proxy
 with no CORS configuration anywhere.
 
-### [ ] T-14 · P3 · URL-owned control state
+### [x] T-14 · P3 · URL-owned control state
 
 deps: [T-13]
 
