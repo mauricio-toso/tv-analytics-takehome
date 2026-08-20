@@ -373,7 +373,7 @@ from the markup and from the absence of any sort in the component.
 
 ## Phase 6 — LLM boundary (P4 — first thing cut, PLAN §8/§9)
 
-### [ ] T-16a · P4 · Prompt, stub provider, numeral validator, deterministic fallback
+### [x] T-16a · P4 · Prompt, stub provider, numeral validator, deterministic fallback
 
 deps: [T-10, T-11]
 
