@@ -1800,3 +1800,46 @@ Files changed: server/routes/normalcy.ts (imports getSummary + NormalcyPayload f
 4. pnpm test → 3 files / 14 tests, all green (includes T-12 integration suite against the seeded DB, run twice, no regressions). pnpm --filter web run build → tsc -b && vite build succeeds cleanly.
 Note (not a failure, for the record): probed getSummary directly (stub path, throwing provider, invented-numeral provider) — in every case it resolved to templateFallback(payload), never rejecting; this is exactly T-16a's already-validated contract and PLAN §8 (fallback is a full competing sentence, not an error state). Consequently the route's `catch { summary = undefined; }` branch is correctly wired but not reachable through any current provider failure mode — in practice the summary field is essentially always present as the fallback sentence. Read against PLAN §8's design, this is consistent with the implementation, not a gap: the field-omission code path is present and correct for the one case (an actual thrown error escaping getSummary) where it would matter.
 No PENDING HUMAN item applies to this task.
+
+### T-17 · attempt 1 · implementer · DONE
+Rewrote README.md (previously a short docker-only stub) covering the full T-17 scope: run-locally sequence (cp .env.example .env → pnpm install --frozen-lockfile → docker compose up -d → pnpm db:migrate → pnpm db:seed → pnpm dev → open http://localhost:5173), one-line test instruction (pnpm test), stack choice and why condensed from PLAN §6, assumptions from PLAN §2, deliberate deferrals from PLAN §5, LLM boundary summary linking to PLAN §8, and "what another day would buy" (sparkline first, then outcome-rate analysis, drill-down, live LLM provider swap, per-account rollups). Verified read-only that every documented script exists verbatim in root package.json (db:migrate, db:seed, dev, test), .env.example vars match docker-compose.yml, Vite defaults to 5173 with /api proxy to :3000 matching server/index.ts. Only README.md changed. No NEEDS_HUMAN_COMMAND, no BLOCKED_PLAN_CONFLICT, no DISCOVERED_WORK.
+
+### T-17 · attempt 1 · validator · PASS
+criterion: Run-locally sequence documented (docker → migrate → seed → dev)
+expected: README documents clone → env → install → docker up → migrate → seed → dev, in order
+actual: README.md lines 12-29 show exactly this order: `cp .env.example .env` → `pnpm install --frozen-lockfile` → `docker compose up -d` → `pnpm db:migrate` → `pnpm db:seed` → `pnpm dev`
+evidence: README.md lines 7-29
+
+criterion: Every documented command exists and is spelled correctly
+expected: db:migrate, db:seed, dev, test scripts exist in root package.json; env vars match .env.example/docker-compose.yml; ports match web/vite.config.ts and server code
+actual: Root package.json scripts block contains db:migrate, db:seed, dev, test verbatim as documented. .env.example vars (POSTGRES_HOST/PORT/DB/USER/PASSWORD) match docker-compose.yml's interpolations and scripts/run-migrate.js/run-seed.js. web/vite.config.ts proxies /api to http://localhost:3000, matching README's claim that the API listens on 3000 and the browser only talks to Vite's default port (5173). Validator manually ran `node index.ts` in server/ on Node v22.23.2 — it started and logged "DASH-247 API listening on http://localhost:3000" with no flags needed, confirming the `pnpm --filter server dev` → `node index.ts` chain works as documented.
+evidence: package.json, docker-compose.yml, .env.example, server/package.json, web/vite.config.ts, server/index.ts lines 17-19, bash output EXIT:0
+
+criterion: No hidden missing prerequisite step for a clean clone
+expected: install step, .env creation, pnpm pinning all present since compose/scripts read those env vars
+actual: README documents `cp .env.example .env` before install; pnpm-workspace.yaml/root package.json (packageManager: "pnpm@11.22.0") pin pnpm exactly, and README's prerequisites line calls out `corepack enable`. scripts/run-migrate.js and run-seed.js both load .env (falling back to the same defaults as .env.example), so omitting the cp step would still work locally via defaults — not a hard requirement, but the README's step is still correct and not misleading.
+evidence: scripts/run-migrate.js lines 10-19, scripts/run-seed.js lines 10-19, pnpm-workspace.yaml
+
+criterion: One-line test instruction
+expected: single command to run tests
+actual: README's "### Tests" section documents `pnpm test`, matching root package.json's "test": "vitest run"; vitest.config.mts confirms include server/**/*.test.ts and a setupFiles that loads .env for the integration test's DB connection, matching README's description
+evidence: README.md lines 38-45, vitest.config.mts, server/test-setup.ts
+
+criterion: Stack choice and why
+expected: present
+actual: README "Stack, and why" section names Vite+React+TS, Express, Postgres, pg, node-pg-migrate, raw SQL, Vitest, pnpm, and gives rejection reasons for ORM/Next.js/Supabase/zod-react-router-state-lib-Tailwind, consistent with PLAN §6
+evidence: README.md lines 47-60 vs PLAN.md lines 122-149
+
+criterion: Assumptions from PLAN §2 present, deferrals from PLAN §5 present, "what another day would buy" present
+expected: content reconstructable without PLAN.md
+actual: README's "Assumptions" section (lines 62-72) matches the 5 rows of PLAN §2's table; "Deliberately out of scope" (lines 74-85) matches PLAN §5's list including the toggle-drafted-then-cut nuance; "What another day would buy" (lines 99-113) enumerates the same 5 items in the same priority order as PLAN §5/§9's overrun note and §8's LLM-provider deferral
+evidence: README.md lines 62-113 vs PLAN.md lines 40-46, 109-120, 296
+
+criterion: No contradiction with CLAUDE.md / project-conventions.md hard rules
+expected: no npm install, no seed.sql editing instruction, SQL/date rules not contradicted
+actual: README only ever instructs `pnpm install --frozen-lockfile`; explicitly states seed data is loaded "verbatim (no cleaning — see CLAUDE.md)"; week-boundary/timezone handling attributed to SQL (AT TIME ZONE) matching the hard rule
+evidence: README.md lines 16-25, 53-58
+
+PENDING HUMAN: I could not perform a literal clean-clone timed walkthrough — that requires `docker compose up`, `pnpm install`, and a fresh checkout, all of which are the human's to run, not mine. Please clone this repo fresh (or simulate via `docker compose down -v` + `rm -rf node_modules`), follow README.md literally start to finish, and confirm the app is reachable at `http://localhost:5173` inside 15 minutes, and that `pnpm test` passes against the seeded DB.
+
+verdict: PASS

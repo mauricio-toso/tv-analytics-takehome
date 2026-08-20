@@ -407,7 +407,7 @@ sentence does render, every numeral in it also appears in the payload that produ
 
 ## Phase 7 — Deliverables (PLAN §9: 0:45)
 
-### [ ] T-17 · P3 · README
+### [x] T-17 · P3 · README
 
 deps: [T-05, T-12, T-13]
 
