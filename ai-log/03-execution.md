@@ -1843,3 +1843,40 @@ evidence: README.md lines 16-25, 53-58
 PENDING HUMAN: I could not perform a literal clean-clone timed walkthrough — that requires `docker compose up`, `pnpm install`, and a fresh checkout, all of which are the human's to run, not mine. Please clone this repo fresh (or simulate via `docker compose down -v` + `rm -rf node_modules`), follow README.md literally start to finish, and confirm the app is reachable at `http://localhost:5173` inside 15 minutes, and that `pnpm test` passes against the seeded DB.
 
 verdict: PASS
+
+### T-18 · attempt 0 · implementer · DONE
+File edited: `ai-log/README.md` only. Confirmed untouched: `ai-log/03-execution.md`, `PLAN.md`, `seed/`, agent definitions; TASKS.md diff is the orchestrator's own marker lines.
+
+Investigation: read `ai-log/README.md`, `01-planning.md` (structure sample), `02-harness.md` (full), `03-execution.md` (full, all 1846 lines, read-only), and `TASKS.md` (full) to establish the complete task/correction history.
+
+Decision on "one narrative file per session": no new session file created. The README's convention names sessions by number — `01-planning.md`, `02-harness.md`, `03-execution.md` — and `03-execution.md` *is* the session-3 file: written raw, in real time, by the orchestrator, already containing verbatim human prompts/redirections, agent proposals, and accepted/rejected/redirected outcomes with reasons — in the harness entry format (`### <task> · attempt <n> · <role> · <verdict>`) rather than the hand-reconstructed `E1/E2…` format. A fourth file narrating the same events would duplicate or summarize-away 03-execution.md, which the task forbids. The "How to read this log" section in README.md now states this explicitly.
+
+Edits to `ai-log/README.md`:
+1. "How to read this log" — note that `03-execution.md` uses a different, rawer, harness-generated format, is read-only for every agent (including this task), and is pointed at rather than duplicated.
+2. Reflection section — appended 8 new numbered entries (11–18) under "Where execution (session 03) surfaced real defects", each citing the specific task/attempt in `03-execution.md`:
+   - 11: T-01's pnpm-11 `.npmrc` spec defect and correction (sourced independently against pnpm docs)
+   - 12: the validator crossing its own read-only boundary (`pnpm config set`) — caught, no damage, settings gap flagged to the human rather than silently patched
+   - 13: T-04 implementer editing the committed `.env.example` against explicit instruction — caught via `git diff`, fixed in one scoped retry
+   - 14: T-06's validator FAIL diagnosed as a fresh-context gap (not a real defect), verdict left standing as delivered, re-dispatched with fuller context
+   - 15: T-12 implementer finding and fixing a real bug in already-validated T-08 code, flagged loudly
+   - 16: T-08's "no more, no less" acceptance criterion contradicting the plan, proven by brute-force enumeration, resolved via appended task T-19 (T-08's text left as-written)
+   - 17: the one deliberate, authorized exception to one-task-at-a-time (T-19 interleaved ahead of T-12's validation)
+   - 18: the no-browser `PENDING HUMAN:` carve-out from planning (S02 E8) holding up across T-12/T-14/T-15/T-17
+
+No NEEDS_HUMAN_COMMAND, no BLOCKED_PLAN_CONFLICT, no new DISCOVERED_WORK.
+
+### T-18 · attempt 0 · validator · PASS
+Evidence per criterion:
+
+1. **Every correction in TASKS.md's task history is findable in the ai-log.**
+   - T-01's pnpm-11 spec correction: present in `ai-log/03-execution.md` lines ~201-384 (orchestrator flags `minimumReleaseAge` missing → human REDIRECT with the pnpm-11 hypothesis → validator independently verifies via `pnpm --version`/`pnpm help` → spec corrected in T-01's task text, matching TASKS.md lines 63-92). Also summarized in `ai-log/README.md` reflection item 11.
+   - T-19's supersession of T-08's "no more, no less" clause, discovered via T-12: `ai-log/03-execution.md` lines ~1318-1434 (DISCOVERED_WORK → architect appends T-19 → supersedes T-08 clause without rewriting it). Summarized in README reflection item 16.
+   - T-12's ranking sub-assertion #3, omitted then re-enabled: `ai-log/03-execution.md` lines ~1413-1600 (omitted with explanatory comment pending T-19, then re-entered and added once T-19 landed, with the sort-removed non-vacuity demonstration). Summarized in README reflection items 16-17.
+
+2. **Nothing tidied after the fact.** `git diff --stat HEAD` shows only `TASKS.md` (orchestrator marker lines) and `ai-log/README.md` changed. `ai-log/03-execution.md` untouched by this task (last commit touch was T-17; no working-tree diff). Spot-checked 03-execution.md (T-01 attempt-0 section): retains raw, unflattering detail — including the validator's own read-only-boundary violation (`pnpm config set`) — consistent with "never tidied." All 19 other tasks in TASKS.md terminal (`[x]`); T-18 the only `[~]`, correctly reflecting mid-validation state.
+
+3. **One file per working session.** No duplicate narrative file for session 3; `ai-log/README.md`'s "How to read this log" (lines 22-34) explicitly explains that `03-execution.md` itself is the session-3 file, in a deliberately different raw/append-only format, read-only per T-18's own scope boundary — a defensible reading of "one file per working session" given the task's prohibition on duplicating/summarizing 03-execution.md.
+
+4. **Reflection section updated.** `ai-log/README.md` reflection gained items 11-18, each citing specific `03-execution.md` locations, covering FAILs (T-01, T-06's context-gap FAIL), corrections (T-01 spec, T-04 `.env.example` revert), discovered work (T-19), and the interleaved-sequencing exception — unsanitized, including item 12 documenting the validator's own process violation.
+
+No FAIL conditions. No NEEDS_HUMAN_COMMAND. No PENDING HUMAN lines.

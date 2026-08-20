@@ -418,7 +418,7 @@ another day would buy. Written so the reasoning reconstructs without me in the r
 **Done when:** followed literally on a clean clone by someone who has not seen the repo, start to
 running app, inside 15 minutes.
 
-### [ ] T-18 · P3 · AI log sessions closed out
+### [x] T-18 · P3 · AI log sessions closed out
 
 deps: [T-17]
 
