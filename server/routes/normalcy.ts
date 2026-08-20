@@ -18,7 +18,7 @@ import {
   getAccountById,
   getWeeklyBucketedEventsWithZeroFill,
 } from "../db/queries.ts";
-import { judgeWeek } from "../domain/baseline.ts";
+import { judgeWeek, type Verdict } from "../domain/baseline.ts";
 import { getSummary, type NormalcyPayload } from "../llm/summary.ts";
 
 export const normalcyRouter = Router();
@@ -48,7 +48,7 @@ normalcyRouter.get(
   async (req: Request, res: Response) => {
     // --- 1. hand-written validation of the three boundary params ---
     const accountIdRaw = req.params.id;
-    if (!/^\d+$/.test(accountIdRaw)) {
+    if (typeof accountIdRaw !== "string" || !/^\d+$/.test(accountIdRaw)) {
       return res
         .status(400)
         .json({ error: `invalid account id: ${accountIdRaw}` });
@@ -100,7 +100,7 @@ normalcyRouter.get(
       current: number;
       baselineMedian: number | null;
       typicalRange: { low: number; high: number } | null;
-      verdict: string;
+      verdict: Verdict;
       deltaPct: number | null;
       weeksOfHistory: number;
       /** Ranking key, computed here and dropped before the response is sent — see sort comment below. */

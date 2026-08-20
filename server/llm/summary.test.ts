@@ -10,9 +10,15 @@
  * make one test's result leak into another's.
  */
 import { describe, expect, test } from "vitest";
-import { getSummary, templateFallback, type NormalcyPayload } from "./summary.ts";
+import {
+  getSummary,
+  templateFallback,
+  type NormalcyPayload,
+} from "./summary.ts";
 
-function makePayload(overrides: Partial<NormalcyPayload> = {}): NormalcyPayload {
+function makePayload(
+  overrides: Partial<NormalcyPayload> = {},
+): NormalcyPayload {
   return {
     accountId: 1,
     timezone: "America/Chicago",

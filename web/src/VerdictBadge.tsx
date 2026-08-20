@@ -12,7 +12,10 @@ export type VerdictBadgeProps = {
   deltaPct: number | null;
 };
 
-const VERDICT_LABEL: Record<Exclude<Verdict, "insufficient_history">, string> = {
+const VERDICT_LABEL: Record<
+  Exclude<Verdict, "insufficient_history">,
+  string
+> = {
   above: "above",
   below: "below",
   typical: "typical",
@@ -20,12 +23,19 @@ const VERDICT_LABEL: Record<Exclude<Verdict, "insufficient_history">, string> = 
 
 export function VerdictBadge({ verdict, deltaPct }: VerdictBadgeProps) {
   if (verdict === "insufficient_history") {
-    return <span className="verdict verdict-insufficient-history">not enough history</span>;
+    return (
+      <span className="verdict verdict-insufficient-history">
+        not enough history
+      </span>
+    );
   }
 
   // deltaPct is null only when the baseline median is 0 (percent change from zero is undefined —
   // baseline.ts deltaPct doc). The verdict word alone still carries the judgement in that case.
-  const deviation = deltaPct === null ? "" : ` (${deltaPct > 0 ? "+" : ""}${deltaPct.toFixed(1)}%)`;
+  const deviation =
+    deltaPct === null
+      ? ""
+      : ` (${deltaPct > 0 ? "+" : ""}${deltaPct.toFixed(1)}%)`;
 
   return (
     <span className={`verdict verdict-${verdict}`}>

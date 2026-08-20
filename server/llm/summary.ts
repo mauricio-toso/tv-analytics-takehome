@@ -69,7 +69,10 @@ export function templateFallback(payload: NormalcyPayload): string {
   const label = payload.eventType.replace(/_/g, " ");
 
   const deviating = payload.locations
-    .filter((location) => location.verdict === "above" || location.verdict === "below")
+    .filter(
+      (location) =>
+        location.verdict === "above" || location.verdict === "below",
+    )
     .sort((a, b) => Math.abs(b.deltaPct ?? 0) - Math.abs(a.deltaPct ?? 0));
 
   if (deviating.length === 0) {
@@ -137,10 +140,15 @@ function extractNumerals(text: string): number[] {
  * The numeral validator (PLAN §8): every numeral in `text` must be traceable to `payload`, within
  * floating-point tolerance, or the text is rejected outright — never shown partially corrected.
  */
-export function containsOnlyKnownNumerals(text: string, payload: NormalcyPayload): boolean {
+export function containsOnlyKnownNumerals(
+  text: string,
+  payload: NormalcyPayload,
+): boolean {
   const allowed = allowedNumerals(payload);
   const found = extractNumerals(text);
-  return found.every((numeral) => allowed.some((known) => Math.abs(known - numeral) < 0.05));
+  return found.every((numeral) =>
+    allowed.some((known) => Math.abs(known - numeral) < 0.05),
+  );
 }
 
 /** Cache key: (account, week, eventType) — see module docblock for why this is permanently valid. */
@@ -176,7 +184,9 @@ export async function getSummary(
   let summary: string;
   try {
     const generated = await provider.generate(payload, buildPrompt(payload));
-    summary = containsOnlyKnownNumerals(generated, payload) ? generated : fallback;
+    summary = containsOnlyKnownNumerals(generated, payload)
+      ? generated
+      : fallback;
   } catch {
     summary = fallback;
   }

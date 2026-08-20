@@ -47,8 +47,15 @@ function readState(search: string): ControlState {
   };
 }
 
-export function useUrlState(): [ControlState, (patch: Partial<ControlState>) => void] {
-  const search = useSyncExternalStore(subscribe, getSearchSnapshot, getSearchSnapshot);
+export function useUrlState(): [
+  ControlState,
+  (patch: Partial<ControlState>) => void,
+] {
+  const search = useSyncExternalStore(
+    subscribe,
+    getSearchSnapshot,
+    getSearchSnapshot,
+  );
   const state = readState(search);
 
   const setState = useCallback((patch: Partial<ControlState>) => {

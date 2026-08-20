@@ -1,6 +1,6 @@
 packages:
-  - 'server'
-  - 'web'
+  - "server"
+  - "web"
 
 # Addresses: version range confusion - pins exact versions, no caret/tilde ranges that could pull compromised releases
 saveExact: true

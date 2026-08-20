@@ -33,7 +33,9 @@ export type LocationTableProps = {
   locations: LocationRow[];
 };
 
-function formatTypicalRange(range: { low: number; high: number } | null): string {
+function formatTypicalRange(
+  range: { low: number; high: number } | null,
+): string {
   if (range === null) {
     return "not enough history";
   }

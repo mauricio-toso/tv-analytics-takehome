@@ -51,7 +51,8 @@ export interface BaselineResultInsufficientHistory {
   weeksOfHistory: number;
 }
 
-export type BaselineResult = BaselineResultWithBand | BaselineResultInsufficientHistory;
+export type BaselineResult =
+  BaselineResultWithBand | BaselineResultInsufficientHistory;
 
 /** Minimum complete prior weeks required before a band is trusted (PLAN §4). */
 const MIN_WEEKS_OF_HISTORY = 4;
@@ -108,7 +109,10 @@ export function scaledMAD(values: number[]): number {
  * The typical range around a baseline median: median ± 2 · scaledMAD, floored at 0 (counts can't
  * be negative).
  */
-export function typicalRange(baselineMedian: number, scaledMadValue: number): TypicalRange {
+export function typicalRange(
+  baselineMedian: number,
+  scaledMadValue: number,
+): TypicalRange {
   const halfWidth = BAND_WIDTH_IN_SCALED_MAD * scaledMadValue;
   return {
     low: Math.max(0, baselineMedian - halfWidth),
@@ -121,7 +125,10 @@ export function typicalRange(baselineMedian: number, scaledMadValue: number): Ty
  * change from a zero baseline is undefined, not a real number, and rendering a fake one would
  * violate principles §6 (say so honestly rather than hiding the edge).
  */
-export function deltaPct(current: number, baselineMedian: number): number | null {
+export function deltaPct(
+  current: number,
+  baselineMedian: number,
+): number | null {
   if (baselineMedian === 0) {
     return null;
   }
@@ -138,7 +145,10 @@ export function deltaPct(current: number, baselineMedian: number): number | null
  *
  * Guard clauses first (insufficient history), happy path last (principles §4).
  */
-export function judgeWeek(currentCount: number, priorWeekCounts: number[]): BaselineResult {
+export function judgeWeek(
+  currentCount: number,
+  priorWeekCounts: number[],
+): BaselineResult {
   const weeksOfHistory = priorWeekCounts.length;
 
   if (weeksOfHistory < MIN_WEEKS_OF_HISTORY) {

@@ -1880,3 +1880,76 @@ Evidence per criterion:
 4. **Reflection section updated.** `ai-log/README.md` reflection gained items 11-18, each citing specific `03-execution.md` locations, covering FAILs (T-01, T-06's context-gap FAIL), corrections (T-01 spec, T-04 `.env.example` revert), discovered work (T-19), and the interleaved-sequencing exception — unsanitized, including item 12 documenting the validator's own process violation.
 
 No FAIL conditions. No NEEDS_HUMAN_COMMAND. No PENDING HUMAN lines.
+
+### T-20 · attempt 1 · implementer · AWAITING
+
+Run directly in the interactive session (human request: "type:check + prettier"), not through the
+sdd-loop — logged here anyway so the record stays complete. Task appended to TASKS.md first
+(Appended after the fact → T-20), then implemented:
+
+- `server/tsconfig.json` created (strict, noEmit, NodeNext, erasableSyntaxOnly). First run of
+  `tsc -p server` FAILED with two pre-existing errors in `server/routes/normalcy.ts` — the server
+  had never been type-checked (no tsconfig; Node type stripping doesn't check):
+  1. `normalcy.ts:51` — `req.params.id` is `string | string[]` under @types/express 5; fixed by
+     narrowing (`typeof accountIdRaw !== "string" || ...`), no cast.
+  2. `normalcy.ts:157` — local row type declared `verdict: string`, widening the domain's
+     `Verdict` union before assignment to `LocationSummaryRow[]`; fixed by importing
+     `type Verdict` from `../domain/baseline.ts` and using it.
+  After the fixes: `tsc -p server` exit 0, `tsc -b web` exit 0 (both run via web's tsc binary,
+  since typescript isn't installed at the root yet).
+- Root scripts added: `type:check`, `format`, `format:check`. `.prettierrc.json` (`{}`, defaults
+  pinned as intentional) and `.prettierignore` (build output, lockfile, `seed/`, all `*.md`).
+
+Blocked on the machine boundary (NEEDS_HUMAN_COMMAND) — run from the repo root:
+
+```
+pnpm add -D -w typescript@7.0.2 prettier
+pnpm run type:check
+pnpm run format
+pnpm run format:check
+pnpm test
+```
+
+Then mark T-20 `[x]` if all four verification commands pass.
+
+### T-20 · attempt 0 · human-command · AWAITING
+Orchestrator state sync: the T-20 implementation above ran interactively and left TASKS.md
+unmarked. Verified the human-run install has not happened yet (root package.json has no
+typescript/prettier devDependencies, no tsc/prettier binaries in node_modules/.bin). Marked T-20
+`[~]`, `> attempts: 0` (waiting on the human consumes no attempt), `> awaiting: pnpm add -D -w
+typescript@7.0.2 prettier`. Stopping until the human runs the command and re-invokes the loop.
+
+### T-20 · attempt 0 · human-command · PASS
+Human reports the awaited command was run ("done"): `pnpm add -D -w typescript@7.0.2 prettier`
+plus the four verification commands. No output pasted; taking success as reported fact per
+protocol. `> awaiting:` removed, resuming by re-dispatching the implementer at attempt 0.
+
+### T-20 · attempt 0 · implementer · PASS (finish pass after human install)
+Install confirmed landed (root devDependencies: typescript@7.0.2, prettier@3.9.6). Ran all four
+verification commands from the repo root: `pnpm run type:check` exit 0; `pnpm run format` exit 0
+with every file "(unchanged)" (prior session's formatting already applied); `pnpm run format:check`
+exit 0 ("All matched files use Prettier code style!"); `pnpm test` exit 0, 3 files / 14 tests
+passed. `git diff --stat` shows only pre-existing changes from the interactive session — the finish
+pass modified nothing. No seed/, Markdown, or lockfile touched by formatting (.prettierignore
+excludes them). Type fixes verified in place: `typeof accountIdRaw !== "string"` narrowing guard
+(normalcy.ts:46-56), `LocationRow.verdict: Verdict` imported from ../domain/baseline.ts.
+
+### T-20 · attempt 0 · validator · PASS
+Independent re-run, fresh context. Evidence per criterion:
+1. `pnpm run type:check` → `tsc -p server && tsc -b web` → EXIT:0.
+2. `pnpm run format:check` → "All matched files use Prettier code style!" EXIT:0. Idempotency
+   proven by diffing `git status --porcelain` before/after `pnpm run format`: NO DIFF.
+3. `pnpm test` → 3 test files, 14 tests, all passed, EXIT:0.
+4. `git diff HEAD -- server/routes/normalcy.ts` shows exactly three changed lines: `type Verdict`
+   added to the baseline import; `!/^\d+$/.test(accountIdRaw)` gains the
+   `typeof accountIdRaw !== "string" ||` narrowing guard (no cast, unreachable for this route
+   shape per the task's own claim); `verdict: string` → `verdict: Verdict` in LocationRow. No
+   `as` casts, no logic/branching change.
+Scope conformance: server/tsconfig.json has strict/noEmit/NodeNext/erasableSyntaxOnly; root
+scripts type:check/format/format:check present; typescript 7.0.2 + prettier 3.9.6 in root
+devDependencies; .prettierrc.json is `{}`; .prettierignore covers web/dist/, pnpm-lock.yaml,
+*.tsbuildinfo, seed/, *.md. `git status --porcelain -- seed/` empty; TASKS.md and
+ai-log/03-execution.md diffs are pure line additions, not Prettier reflow. Repo-wide
+quote-style normalization in .node-pg-migrate.config.cjs, scripts/run-*.js,
+pnpm-workspace.yaml etc. is Prettier defaults applied as intended. No NEEDS_HUMAN_COMMAND,
+no PENDING HUMAN lines.

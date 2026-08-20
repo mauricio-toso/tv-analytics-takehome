@@ -15,7 +15,9 @@ describe("baseline math (PLAN §4/§7.1)", () => {
     const outlierFree = [12, 14, 11, 13, 12, 14, 13, 15];
     const withOutlier = [12, 14, 11, 13, 800, 14, 13, 15];
 
-    expect(Math.abs(median(withOutlier) - median(outlierFree))).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(median(withOutlier) - median(outlierFree)),
+    ).toBeLessThanOrEqual(1);
   });
 
   test("under naive mean ± 2·stddev the same outlier-inflated band would call a genuine spike 'typical' where median/MAD correctly calls it 'above'", () => {
@@ -29,9 +31,11 @@ describe("baseline math (PLAN §4/§7.1)", () => {
     //   mean = (12+14+11+13+800+14+13+15) / 8 = 111.5
     //   variance = Σ(x - mean)² / 8 = 67711.75  →  stddev ≈ 260.2
     // both dragged up and blown wide by the single 800-event outlier.
-    const mean = priorWeeks.reduce((sum, value) => sum + value, 0) / priorWeeks.length;
+    const mean =
+      priorWeeks.reduce((sum, value) => sum + value, 0) / priorWeeks.length;
     const variance =
-      priorWeeks.reduce((sum, value) => sum + (value - mean) ** 2, 0) / priorWeeks.length;
+      priorWeeks.reduce((sum, value) => sum + (value - mean) ** 2, 0) /
+      priorWeeks.length;
     const stddev = Math.sqrt(variance);
     const meanBandLow = Math.max(0, mean - 2 * stddev);
     const meanBandHigh = mean + 2 * stddev;

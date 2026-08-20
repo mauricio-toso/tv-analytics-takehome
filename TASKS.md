@@ -487,3 +487,34 @@ existence, it returns correspondingly fewer rows — both shown with the SQL and
 (3) `insufficient_history` is demonstrated reachable through the live endpoint against the seed —
 a concrete (account, eventType, weekStart) yielding it, with the independent SQL that verifies that
 location's first-event week; (4) existing tests (T-10, T-12's committed suite) stay green.
+
+### [x] T-20 · P4 · Repo-wide `type:check` and Prettier
+
+deps: [T-17]
+
+Requested by the human after T-18 (not discovered by a task — a direct quality-of-life request):
+one command that type-checks the whole repo, and Prettier for homogeneous formatting.
+
+Gap it closes: `web` was already type-checked by its build (`tsc -b`), but `server` runs on Node's
+native type stripping and had **no tsconfig at all** — its types were never checked by anything.
+Adding `server/tsconfig.json` (strict, `noEmit`, NodeNext, `erasableSyntaxOnly` to mirror what Node
+actually executes) immediately surfaced two real errors in `server/routes/normalcy.ts`, fixed as
+part of this task: `req.params.id` is `string | string[]` under Express 5 types and was never
+narrowed, and the route's local row type declared `verdict: string`, discarding the domain's
+`Verdict` union before the payload was checked against `LocationSummaryRow`.
+
+Scope:
+
+- `server/tsconfig.json` (new) — check-only, no emit, matching Node's runtime constraints.
+- Root scripts: `type:check` (`tsc -p server && tsc -b web`), `format` / `format:check`
+  (Prettier, default options — an empty `.prettierrc.json` pins that as intentional).
+- `.prettierignore`: build output, lockfile, `seed/` (frozen), and all Markdown — Prettier's
+  scope here is code only; reflowing README/PLAN/TASKS/ai-log would bury real diffs in churn.
+- Root devDependencies (human-installed, agents don't touch the machine):
+  `typescript@7.0.2` (same version `web` already pins) and `prettier`.
+
+**Done when:** (1) `pnpm run type:check` exits 0 from the repo root; (2) `pnpm run format` is
+idempotent and `pnpm run format:check` exits 0 afterwards; (3) `pnpm test` stays green; (4) the
+two surfaced type errors are fixed at the type level only — no behavior change (the
+`typeof accountIdRaw !== "string"` guard is unreachable for this route shape and exists to
+satisfy narrowing honestly rather than with a cast).

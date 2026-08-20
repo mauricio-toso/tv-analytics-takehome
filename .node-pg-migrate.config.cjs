@@ -5,15 +5,15 @@
 
 module.exports = {
   // Migration directory
-  dir: 'migrations',
+  dir: "migrations",
 
   // Exclude non-migration files from directory scan
   // migrations/schema.reference.sql is a reference artifact from T-02, not a migration
   // Using kebab-case to match CLI option naming convention
-  'ignore-pattern': '.*schema\\.reference\\.sql$',
+  "ignore-pattern": ".*schema\\.reference\\.sql$",
 
   // Migration file naming: timestamp prefix for ordering
-  migrationsTable: 'pgmigrations',
+  migrationsTable: "pgmigrations",
 
   // TypeScript support (node-pg-migrate will look for .ts files and transpile)
   // Since we have @types/node installed, we can use TypeScript for migrations

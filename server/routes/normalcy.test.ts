@@ -224,7 +224,6 @@ describe("GET /api/accounts/:id/normalcy — integration (PLAN §7 / T-12)", () 
       "Site D",
       "Site A",
     ]);
-
   });
 
   test("insufficient_history rows are grouped at the end, not interleaved among ranked rows", async () => {
