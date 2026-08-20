@@ -19,6 +19,7 @@ import {
   getWeeklyBucketedEventsWithZeroFill,
 } from "../db/queries.ts";
 import { judgeWeek } from "../domain/baseline.ts";
+import { getSummary, type NormalcyPayload } from "../llm/summary.ts";
 
 export const normalcyRouter = Router();
 
@@ -148,7 +149,7 @@ normalcyRouter.get(
     });
 
     // --- 3. shape the response ---
-    const payload = {
+    const payload: NormalcyPayload = {
       accountId,
       timezone,
       eventType,
@@ -156,6 +157,20 @@ normalcyRouter.get(
       locations: locations.map(({ deviationScore, ...rest }) => rest),
     };
 
-    return res.status(200).json(payload);
+    // --- 3b. Monday narrative summary (T-16a/T-16b, PLAN §8): strictly additive. getSummary
+    // never rejects on its own (it falls back to a deterministic template internally), but the
+    // route still guards the call so that a defect anywhere in the LLM boundary can only ever
+    // cost the summary sentence, never the 200 response the table depends on
+    // (project-conventions.md -> API contract: the summary field is optional, its absence normal).
+    let summary: string | undefined;
+    try {
+      summary = await getSummary(payload);
+    } catch {
+      summary = undefined;
+    }
+
+    return res
+      .status(200)
+      .json(summary !== undefined ? { ...payload, summary } : payload);
   },
 );

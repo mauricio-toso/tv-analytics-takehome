@@ -391,7 +391,7 @@ fallback is returned instead, and a second asserts a provider that throws produc
 rather than an error. Both tests call the module with a plain payload object — no Express, no
 database, no HTTP: the trust boundary is visible in the signature (PLAN §8).
 
-### [ ] T-16b · P4 · Wire the summary in as an additive field
+### [x] T-16b · P4 · Wire the summary in as an additive field
 
 deps: [T-15, T-16a]
 

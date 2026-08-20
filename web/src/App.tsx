@@ -14,6 +14,10 @@ type NormalcyResponse = {
   eventType: string;
   weekStart: string;
   locations: LocationRow[];
+  /** T-16b: additive Monday narrative summary. Absence is normal, never an error — the table
+   * below renders every count, typical range and verdict from `locations` regardless of whether
+   * this field is present. No number displayed anywhere else is sourced from this sentence. */
+  summary?: string;
 };
 
 export function App() {
@@ -95,6 +99,7 @@ export function App() {
 
       {error && <p role="alert">Failed to load: {error}</p>}
       {!error && !data && <p>Loading…</p>}
+      {data?.summary && <p className="summary">{data.summary}</p>}
       {data && <LocationTable locations={data.locations} />}
     </main>
   );
