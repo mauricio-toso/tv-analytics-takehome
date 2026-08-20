@@ -1,0 +1,11 @@
+# Build output and lockfile
+web/dist/
+pnpm-lock.yaml
+*.tsbuildinfo
+
+# Frozen data — never touched (CLAUDE.md hard rule)
+seed/
+
+# Prose (README, PLAN, TASKS, ai-log, resources): formatting churn there buries
+# real diffs; Prettier's scope in this repo is code only (ts/tsx/js/json/css/html/yml).
+*.md

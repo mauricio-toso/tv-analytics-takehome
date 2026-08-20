@@ -1,0 +1,23 @@
+{
+  "name": "dash-247",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "db:migrate": "node scripts/run-migrate.js up",
+    "db:seed": "node scripts/run-seed.js",
+    "dev": "concurrently -n server,web -c blue,green \"pnpm --filter server dev\" \"pnpm --filter web dev\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "type:check": "tsc -p server && tsc -b web"
+  },
+  "devDependencies": {
+    "@types/node": "26.2.0",
+    "concurrently": "10.0.5",
+    "node-pg-migrate": "9.0.0",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11"
+  }
+}

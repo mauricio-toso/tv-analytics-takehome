@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm config:*)",
+      "Bash(pnpm db:migrate:*)",
+      "Bash(docker compose exec *)"
+    ]
+  }
+}
