@@ -57,48 +57,58 @@ export function App() {
 
   return (
     <main>
-      <h1>DASH-247</h1>
-      <form aria-label="controls" onSubmit={(e) => e.preventDefault()}>
-        <label>
-          Account
-          <select
-            value={account}
-            onChange={(e) => setUrlState({ account: e.target.value })}
-          >
-            {ACCOUNT_IDS.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
-        </label>
+      <header className="masthead">
+        <p className="eyebrow">RELAY &middot; DASH-247</p>
+        <form aria-label="controls" onSubmit={(e) => e.preventDefault()}>
+          <h1 className="question">
+            Is{" "}
+            <label className="inline-control">
+              <span className="visually-hidden">Event type</span>
+              <select
+                value={eventType}
+                onChange={(e) => setUrlState({ eventType: e.target.value })}
+              >
+                {EVENT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+            </label>{" "}
+            normal for account{" "}
+            <label className="inline-control">
+              <span className="visually-hidden">Account</span>
+              <select
+                value={account}
+                onChange={(e) => setUrlState({ account: e.target.value })}
+              >
+                {ACCOUNT_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+            </label>
+            , week starting{" "}
+            <label className="inline-control">
+              <span className="visually-hidden">Week starting</span>
+              <input
+                type="date"
+                value={weekStart}
+                onChange={(e) => setUrlState({ weekStart: e.target.value })}
+              />
+            </label>
+            ?
+          </h1>
+        </form>
+      </header>
 
-        <label>
-          Event type
-          <select
-            value={eventType}
-            onChange={(e) => setUrlState({ eventType: e.target.value })}
-          >
-            {EVENT_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Week starting
-          <input
-            type="date"
-            value={weekStart}
-            onChange={(e) => setUrlState({ weekStart: e.target.value })}
-          />
-        </label>
-      </form>
-
-      {error && <p role="alert">Failed to load: {error}</p>}
-      {!error && !data && <p>Loading…</p>}
+      {error && (
+        <p className="status status-error" role="alert">
+          Failed to load: {error}
+        </p>
+      )}
+      {!error && !data && <p className="status status-loading">Loading…</p>}
       {data?.summary && <p className="summary">{data.summary}</p>}
       {data && <LocationTable locations={data.locations} />}
     </main>

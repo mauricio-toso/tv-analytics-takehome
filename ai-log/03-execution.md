@@ -1953,3 +1953,37 @@ ai-log/03-execution.md diffs are pure line additions, not Prettier reflow. Repo-
 quote-style normalization in .node-pg-migrate.config.cjs, scripts/run-*.js,
 pnpm-workspace.yaml etc. is Prettier defaults applied as intended. No NEEDS_HUMAN_COMMAND,
 no PENDING HUMAN lines.
+
+### T-21 · attempt 0 · implementer · DONE
+Purely presentational "Monday triage sheet" restyle, no logic changes. Files: web/src/App.tsx
+(mad-lib sentence "Is [event type] normal for account [N], week starting [date]?" inside the
+existing <form aria-label="controls">, eyebrow RELAY · DASH-247, visually-hidden label spans for
+accessible names; fetch/useUrlState/summary/error/loading logic untouched, classNames only);
+web/src/LocationTable.tsx (table-scroll overflow wrapper, num classes, scope="col", styled empty
+state, same row order/formatting); web/src/VerdictBadge.tsx (pill class for above/below only,
+verdict-delta span around the numeral — same branches and text); web/src/styles.css (full rewrite:
+:root tokens per the task's pinned palette, system sans UI + ui-monospace/tabular-nums data,
+hairline table rules, :focus-visible ring, single transition gated behind prefers-reduced-motion).
+index.html unmodified. Commands: pnpm run type:check exit 0; web build ok; pnpm test 14/14 passed;
+pnpm run format reformatted LocationTable.tsx + styles.css (whitespace only); format:check clean.
+Deviation: none from the pinned direction; one in-scope judgment call — delta percentage wrapped
+in its own span so the monospace treatment scopes to the numeral without touching the verdict word.
+
+### T-21 · attempt 0 · validator · PASS
+(1) pnpm run type:check exit 0; web build (tsc -b && vite build) produced dist/. (2) git diff:
+empty for server/, useUrlState.ts, package.json, pnpm-lock.yaml; App.tsx single hunk, fetch effect
+and the three onChange setUrlState calls byte-identical; LocationTable.tsx single hunk, map order/
+empty check/formatTypicalRange unchanged, only classNames/scope/wrapper div; VerdictBadge.tsx adds
+pillClass + delta span, branches unchanged. (3) Honest states render styled: locations.length===0
+-> "No locations with data for this account." via .status-empty (italic, muted);
+insufficient_history -> "not enough history" via .verdict-insufficient-history (muted italic).
+(4) Global :focus-visible outline 2px solid var(--focus-ring), no outline:none overrides.
+(5) Only transition block in styles.css is neutralized under @media (prefers-reduced-motion:
+reduce) { transition: none; }. (6) pnpm test 3 files / 14 tests passed; format:check clean.
+Scope discipline: only the four declared web/src files plus TASKS.md bookkeeping touched.
+PENDING HUMAN: the visual appearance of the palette/typography, the actual rendered focus-ring
+appearance on click/tab, and reload/URL-share survival of the three mad-lib controls were not
+exercised in a browser (no browser tool available). Static review confirms all three controls
+remain sourced solely from useUrlState with no duplicated React state, so reload/URL-sharing
+behavior should be unaffected by this purely-presentational change, but this was not
+interactively verified.

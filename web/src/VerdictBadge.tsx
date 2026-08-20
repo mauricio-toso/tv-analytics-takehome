@@ -37,10 +37,14 @@ export function VerdictBadge({ verdict, deltaPct }: VerdictBadgeProps) {
       ? ""
       : ` (${deltaPct > 0 ? "+" : ""}${deltaPct.toFixed(1)}%)`;
 
+  // Deviations (above/below) get a tinted pill so they pop; typical stays plain, quiet text so
+  // it recedes — the eye should land on the rows that deviated, not on every row equally.
+  const pillClass = verdict === "typical" ? "" : " pill";
+
   return (
-    <span className={`verdict verdict-${verdict}`}>
+    <span className={`verdict verdict-${verdict}${pillClass}`}>
       {VERDICT_LABEL[verdict]}
-      {deviation}
+      {deviation && <span className="verdict-delta">{deviation}</span>}
     </span>
   );
 }

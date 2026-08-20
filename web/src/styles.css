@@ -1,35 +1,243 @@
-body {
-  font-family: system-ui, sans-serif;
-  margin: 2rem;
+/* DASH-247 — "Monday triage sheet"
+ * Subject: an ops manager at a multi-location service business, Monday morning, asking
+ * "was last week normal for us?" The page's one job is ranking locations by deviation and
+ * giving an honest verdict. Everything below is styling only — see App.tsx / LocationTable.tsx /
+ * VerdictBadge.tsx for the (unchanged) logic that produces the numbers this renders.
+ */
+
+:root {
+  --ink: #1c2733;
+  --paper: #fafbfc;
+  --hairline: #dde3e8;
+  --muted: #5b6b7a;
+
+  --above-fg: #9a5b00;
+  --above-bg: #fff3dc;
+  --below-fg: #1f5ec2;
+  --below-bg: #e7eefa;
+  --typical-fg: #3d6b57;
+
+  --focus-ring: #0f766e;
+
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-data:
+    ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono",
+    monospace;
 }
 
-pre {
-  background: #f5f5f5;
-  padding: 1rem;
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 2.5rem 1.5rem 4rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  line-height: 1.5;
+}
+
+main {
+  max-width: 52rem;
+  margin: 0 auto;
+}
+
+/* -- Masthead / mad-lib question -------------------------------------------------- */
+
+.masthead {
+  margin-bottom: 2.25rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.question {
+  margin: 0;
+  font-size: clamp(1.35rem, 1rem + 1.4vw, 1.9rem);
+  font-weight: 600;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Controls are rendered as inline label wrappers so the sentence carries them, but each keeps
+ * an accessible name via the visually-hidden span above (the words around it are ambiguous —
+ * "call_received" alone doesn't say "event type"). */
+.inline-control {
+  display: inline-block;
+}
+
+.inline-control select,
+.inline-control input {
+  font: inherit;
+  font-family: var(--font-data);
+  font-weight: 600;
+  font-size: 0.92em;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--ink);
+  border-radius: 0;
+  padding: 0 0.15em 0.05em;
+  appearance: none;
+  cursor: pointer;
+}
+
+.inline-control input[type="date"] {
+  cursor: text;
+}
+
+.inline-control select {
+  /* keep native arrow off so the underline reads as the only affordance */
+  background-image: none;
+}
+
+.inline-control select:hover,
+.inline-control input:hover {
+  border-bottom-color: var(--focus-ring);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* -- Status / summary --------------------------------------------------------------- */
+
+.status {
+  color: var(--muted);
+}
+
+.status-error {
+  color: var(--above-fg);
+  font-weight: 600;
+}
+
+.status-empty {
+  font-style: italic;
+  color: var(--muted);
+}
+
+.summary {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid var(--hairline);
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* -- Table ---------------------------------------------------------------------------- */
+
+.table-scroll {
   overflow-x: auto;
 }
 
-table {
+.location-table {
+  width: 100%;
   border-collapse: collapse;
-  margin-top: 1rem;
+  font-size: 0.95rem;
 }
 
-th,
-td {
-  border: 1px solid #ccc;
-  padding: 0.4rem 0.8rem;
+.location-table th,
+.location-table td {
+  padding: 0.75rem 1rem;
   text-align: left;
+  border-bottom: 1px solid var(--hairline);
+  white-space: nowrap;
 }
 
-.verdict-above {
-  color: #b45309;
+.location-table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--ink);
 }
 
-.verdict-below {
-  color: #1d4ed8;
+.location-table th.num,
+.location-table td.num {
+  text-align: right;
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.location-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* -- Verdicts --------------------------------------------------------------------------- */
+
+.verdict {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9em;
+}
+
+.verdict-delta {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.verdict.pill {
+  display: inline-block;
+  padding: 0.2em 0.6em;
+  border-radius: 999px;
+}
+
+.verdict-above.pill {
+  color: var(--above-fg);
+  background: var(--above-bg);
+}
+
+.verdict-below.pill {
+  color: var(--below-fg);
+  background: var(--below-bg);
+}
+
+/* Typical recedes: no pill, quiet color, so deviations are what draw the eye. */
+.verdict-typical {
+  color: var(--typical-fg);
 }
 
 .verdict-insufficient-history {
-  color: #6b7280;
+  color: var(--muted);
   font-style: italic;
+}
+
+/* -- Motion --------------------------------------------------------------------------------- */
+
+.inline-control select,
+.inline-control input,
+.verdict.pill {
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inline-control select,
+  .inline-control input,
+  .verdict.pill {
+    transition: none;
+  }
 }

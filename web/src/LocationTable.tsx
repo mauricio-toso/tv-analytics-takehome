@@ -44,31 +44,41 @@ function formatTypicalRange(
 
 export function LocationTable({ locations }: LocationTableProps) {
   if (locations.length === 0) {
-    return <p>No locations with data for this account.</p>;
+    return (
+      <p className="status status-empty">
+        No locations with data for this account.
+      </p>
+    );
   }
 
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Location</th>
-          <th>Last week</th>
-          <th>Typical range</th>
-          <th>Verdict</th>
-        </tr>
-      </thead>
-      <tbody>
-        {locations.map((row) => (
-          <tr key={row.location}>
-            <td>{row.location}</td>
-            <td>{row.current}</td>
-            <td>{formatTypicalRange(row.typicalRange)}</td>
-            <td>
-              <VerdictBadge verdict={row.verdict} deltaPct={row.deltaPct} />
-            </td>
+    <div className="table-scroll">
+      <table className="location-table">
+        <thead>
+          <tr>
+            <th scope="col">Location</th>
+            <th scope="col" className="num">
+              Last week
+            </th>
+            <th scope="col" className="num">
+              Typical range
+            </th>
+            <th scope="col">Verdict</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {locations.map((row) => (
+            <tr key={row.location}>
+              <td>{row.location}</td>
+              <td className="num">{row.current}</td>
+              <td className="num">{formatTypicalRange(row.typicalRange)}</td>
+              <td>
+                <VerdictBadge verdict={row.verdict} deltaPct={row.deltaPct} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

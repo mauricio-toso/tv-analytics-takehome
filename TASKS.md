@@ -518,3 +518,48 @@ idempotent and `pnpm run format:check` exits 0 afterwards; (3) `pnpm test` stays
 two surfaced type errors are fixed at the type level only — no behavior change (the
 `typeof accountIdRaw !== "string"` guard is unreachable for this route shape and exists to
 satisfy narrowing honestly rather than with a cast).
+
+### [x] T-21 · P4 · UI restyle — "Monday triage sheet" design pass over the existing shell
+
+deps: [T-15, T-16b]
+
+Requested by the human after T-20 (direct request, not discovered by a task): re-plan the visual
+styling of the existing UI applying the `frontend-design` skill (`.claude/skills/frontend-design/`).
+**Purely presentational** — no behavior, data-flow, or ranking changes; every number, range,
+verdict, and honest state keeps coming from exactly the fields it comes from today.
+
+Design direction, pinned here so the implementer executes rather than re-ideates (the skill's
+brainstorm/critique pass already happened when this task was written):
+
+- **Subject & job:** an ops manager at a multi-location service business, Monday morning, asking
+  "was last week normal for us?". The page's one job is ranking locations by deviation and giving
+  an honest verdict.
+- **Signature element — the controls are the headline.** Replace the detached `<form>` layout with
+  a mad-lib question sentence: *"Is `[event type]` normal for account `[N]`, week starting
+  `[date]`?"* — the three existing controls rendered inline (underlined tokens) inside the
+  sentence. Same three controls, same URL-owned state (T-14 untouched); only markup structure and
+  CSS change. An eyebrow line above it reads `RELAY · DASH-247`.
+- **Palette (tokens in `:root`):** ink `#1C2733` on cool paper `#FAFBFC`, hairline `#DDE3E8`,
+  muted `#5B6B7A`. Verdicts: above = amber `#9A5B00` on tint `#FFF3DC`; below = blue `#1F5EC2` on
+  tint `#E7EEFA`; typical = quiet gray-green `#3D6B57`, no tinted pill (typical should recede,
+  deviations should pop); insufficient history stays muted italic. Focus ring: `#0F766E`.
+- **Type:** system sans for UI text; **all data (counts, ranges, deltas) in
+  `ui-monospace`/`tabular-nums`** — the data column's identity. No web fonts, no external
+  requests (consistent with the repo's supply-chain posture).
+- **Table:** horizontal rules only (no full grid), right-aligned numeric columns, verdict pills,
+  generous row height; summary paragraph styled as a quiet note above it.
+- **Restraint:** no charts/sparklines, no icons, at most one subtle transition and it sits behind
+  `prefers-reduced-motion`; visible `:focus-visible` on all controls; table scrolls horizontally
+  on narrow viewports instead of breaking the page.
+
+Scope: `web/src/styles.css` (rewrite), markup/classNames in `web/src/App.tsx`,
+`web/src/LocationTable.tsx`, `web/src/VerdictBadge.tsx`. No new dependencies, no changes to
+`useUrlState.ts`, fetch logic, or anything under `server/`. Conventions hold: one plain
+`styles.css`, components stay thin wrappers over native HTML elements.
+
+**Done when:** (1) `pnpm run type:check` exits 0 and the web build succeeds; (2) the diff shows no
+logic changes — fetch, URL state, and row order handling are byte-identical or markup-only;
+(3) the honest states still render and are styled, not hidden: account 20's empty state and an
+`insufficient_history` row; (4) keyboard focus is visible on all three controls; (5) no animation
+runs under `prefers-reduced-motion: reduce`; (6) `pnpm test` and `pnpm run format:check` stay
+green.
